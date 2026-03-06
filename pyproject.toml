@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mangohudpy"
+version = "1.0.0"
+description = "MangoHud Performance Profiler for Bazzite / SteamOS"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+graphs = ["matplotlib"]
+
+[project.scripts]
+mangohud-py = "mangohudpy.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mangohudpy*"]

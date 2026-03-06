@@ -1,0 +1,226 @@
+"""Shared utility functions: logging setup, OS detection, CSV parsing, helpers."""
+from __future__ import annotations
+
+import logging
+import pathlib
+import re
+import shutil
+import sys
+from typing import Dict, List, Optional, Tuple
+
+from .constants import (
+    LOG_FMT,
+    LOG_DATEFMT,
+    MANGOHUD_ALT_LOG,
+    MANGOHUD_LOG_DIR,
+    MANGOHUD_TMP_LOG,
+    PROG_NAME,
+)
+
+log = logging.getLogger(PROG_NAME)
+
+# ── MangoHud CSV spec header fields ────────────────────────────────────
+_MANGOHUD_SPEC_FIELDS = {"os", "cpu", "gpu", "ram", "kernel", "driver", "cpuscheduler"}
+
+
+def setup_logging(verbosity: int = 0, logfile: Optional[str] = None) -> None:
+    level = [logging.WARNING, logging.INFO, logging.DEBUG][min(verbosity, 2)]
+    handlers: List[logging.Handler] = [logging.StreamHandler(sys.stderr)]
+    if logfile:
+        fh = logging.FileHandler(logfile, mode="a", encoding="utf-8")
+        fh.setFormatter(logging.Formatter(LOG_FMT, datefmt=LOG_DATEFMT))
+        handlers.append(fh)
+    logging.basicConfig(
+        level=level, format=LOG_FMT, datefmt=LOG_DATEFMT, handlers=handlers
+    )
+    log.setLevel(level)
+
+
+# ── OS detection ───────────────────────────────────────────────────────
+
+
+def detect_os() -> Dict[str, str]:
+    info: Dict[str, str] = {}
+    p = pathlib.Path("/etc/os-release")
+    if p.exists():
+        for ln in p.read_text().splitlines():
+            if "=" in ln:
+                k, _, v = ln.partition("=")
+                info[k.strip()] = v.strip().strip('"')
+    return info
+
+
+def is_bazzite() -> bool:
+    i = detect_os()
+    return "bazzite" in (i.get("NAME", "") + " " + i.get("ID", "")).lower()
+
+
+def is_steamos() -> bool:
+    i = detect_os()
+    return (
+        "steamos" in (i.get("ID", "") + " " + i.get("ID_LIKE", "")).lower()
+        or is_bazzite()
+    )
+
+
+def mangohud_installed() -> bool:
+    return shutil.which("mangohud") is not None
+
+
+# ── Log file discovery ─────────────────────────────────────────────────
+
+
+def find_logs(
+    d: Optional[pathlib.Path] = None, pat: str = "*.csv", game: Optional[str] = None
+) -> List[pathlib.Path]:
+    """Find MangoHud CSV logs, optionally filtered by game name."""
+    dirs = [d] if d else [MANGOHUD_LOG_DIR, MANGOHUD_TMP_LOG, MANGOHUD_ALT_LOG]
+    r: List[pathlib.Path] = []
+    for x in dirs:
+        if x and x.is_dir():
+            r.extend(sorted(x.glob(pat)))
+    if game:
+        gl = game.lower()
+        r = [p for p in r if p.stem.lower().startswith(gl)]
+    return r
+
+
+def newest_log(
+    d: Optional[pathlib.Path] = None, game: Optional[str] = None
+) -> Optional[pathlib.Path]:
+    ls = find_logs(d, game=game)
+    return max(ls, key=lambda p: p.stat().st_mtime) if ls else None
+
+
+def discover_games(d: Optional[pathlib.Path] = None) -> List[str]:
+    """Return sorted unique game names found in MangoHud log filenames."""
+    logs = find_logs(d)
+    names: set[str] = set()
+    for p in logs:
+        stem = p.stem
+        m = re.match(r"^(.+?)_\d{4}[-_]", stem)
+        if m:
+            names.add(m.group(1))
+        else:
+            names.add(stem)
+    return sorted(names, key=str.lower)
+
+
+def _extract_game_name(stem: str) -> str:
+    """Extract game name from MangoHud log filename stem."""
+    m = re.match(r"^(.+?)_\d{4}[-_]", stem)
+    name = m.group(1) if m else stem
+    if name.lower().endswith(".exe"):
+        name = name[:-4]
+    return name
+
+
+# ── CSV parsing ────────────────────────────────────────────────────────
+
+
+def _strip_v1_preamble(lines: List[str]) -> List[str]:
+    """Remove MangoHud >=0.8 preamble lines, leaving the 3-line spec format."""
+    return [
+        ln for ln in lines
+        if not re.match(r"^v\d", ln.strip())
+        and not re.match(r"^-{3}", ln.strip())
+    ]
+
+
+def _normalize_csv_for_flightless(path: pathlib.Path) -> str:
+    """Return CSV content normalized to the FlightlessSomething 3-line spec format."""
+    raw = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    cleaned = _strip_v1_preamble([ln for ln in raw if ln.strip()])
+    return "\n".join(cleaned) + "\n"
+
+
+def parse_csv(
+    path: pathlib.Path,
+) -> Tuple[List[str], List[Dict[str, str]]]:
+    """Parse a MangoHud CSV log, returning (column_names, rows).
+
+    Handles modern 3-line spec-header format, MangoHud 0.8+ v1 format, and
+    legacy #-comment format.
+    """
+    lines = [
+        s
+        for s in path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if s.strip()
+    ]
+    if not lines:
+        return [], []
+
+    lines = _strip_v1_preamble(lines)
+    if not lines:
+        return [], []
+
+    # Detect modern spec-header format
+    first_fields = {f.strip().lower() for f in lines[0].split(",")}
+    if first_fields & _MANGOHUD_SPEC_FIELDS and len(first_fields & _MANGOHUD_SPEC_FIELDS) >= 3:
+        if len(lines) < 3:
+            return [], []
+        cols = [c.strip() for c in lines[2].split(",")]
+        rows: List[Dict[str, str]] = []
+        for ln in lines[3:]:
+            vs = ln.split(",")
+            if len(vs) == len(cols):
+                rows.append(dict(zip(cols, [v.strip() for v in vs])))
+        return cols, rows
+
+    # Legacy format
+    hi = 0
+    for i, ln in enumerate(lines):
+        if ln.startswith("#"):
+            hi = i + 1
+            continue
+        parts = ln.split(",")
+        if (
+            sum(1 for p in parts if re.match(r"^[A-Za-z_]+", p.strip()))
+            > len(parts) * 0.5
+        ):
+            hi = i
+            break
+    cols = [c.strip() for c in lines[hi].split(",")]
+    rows = []
+    for ln in lines[hi + 1:]:
+        vs = ln.split(",")
+        if len(vs) == len(cols):
+            rows.append(dict(zip(cols, [v.strip() for v in vs])))
+    return cols, rows
+
+
+# ── Math / formatting helpers ──────────────────────────────────────────
+
+
+def sf(v: str, d: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return d
+
+
+def hdur(s: float) -> str:
+    if s < 60:
+        return f"{s:.1f}s"
+    m, s2 = divmod(s, 60)
+    if m < 60:
+        return f"{int(m)}m {s2:.0f}s"
+    h, m = divmod(m, 60)
+    return f"{int(h)}h {int(m)}m {s2:.0f}s"
+
+
+def pctl(sv: List[float], p: float) -> float:
+    if not sv:
+        return 0.0
+    k = (len(sv) - 1) * (p / 100.0)
+    f = int(k)
+    c = min(f + 1, len(sv) - 1)
+    return sv[f] + (k - f) * (sv[c] - sv[f])
+
+
+def _fcol(cols: List[str], cands: List[str]) -> Optional[str]:
+    m = {c.lower(): c for c in cols}
+    for c in cands:
+        if c.lower() in m:
+            return m[c.lower()]
+    return None
