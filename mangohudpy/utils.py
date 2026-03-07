@@ -234,6 +234,20 @@ def _fcol(cols: List[str], cands: List[str]) -> Optional[str]:
 # ── Steam session helpers ──────────────────────────────────────────────
 
 
+def _resolve_game_name(name: str, steam_app_names: Dict[str, str]) -> str:
+    """Match an extracted game name against known Steam app names.
+
+    Strips all non-alphanumeric characters from both sides before comparing,
+    so 'HorizonZeroDawnRemastered' matches 'Horizon Zero Dawn Remastered'.
+    Returns the canonical Steam app name on a match, or the original name.
+    """
+    normalized = re.sub(r"[^a-z0-9]", "", name.lower())
+    for app_name in steam_app_names.values():
+        if re.sub(r"[^a-z0-9]", "", app_name.lower()) == normalized:
+            return app_name
+    return name
+
+
 def _sanitize_game_name(name: str) -> str:
     """Strip filesystem-unsafe characters from a Steam game name."""
     safe = re.sub(r'[\\/:*?"<>|™®©]', "", name)

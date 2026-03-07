@@ -14,6 +14,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import textwrap
 import urllib.request
 from typing import Dict, List, Optional, Tuple
 
@@ -186,7 +187,8 @@ _MH_RE = re.compile(r'(?:MANGOHUD_CONFIG="[^"]*"\s+)?mangohud\s+', re.IGNORECASE
 def _mangohud_prefix(log_dir: pathlib.Path) -> str:
     cfg = (
         f"autostart_log=1,output_folder={log_dir},"
-        "log_interval=100,log_versioning=1,log_duration=0"
+        "log_interval=100,log_versioning=1,log_duration=0,"
+        "no_display=1"
     )
     return f'MANGOHUD_CONFIG="{cfg}" mangohud '
 
@@ -238,6 +240,7 @@ class _LaunchOptionTUI:
         self.filter_text = ""
         self.cursor = 0
         self.scroll = 0
+        self.show_launch = False
 
     def _filtered(self) -> List[Tuple[str, str]]:
         if not self.filter_text:
@@ -281,7 +284,13 @@ class _LaunchOptionTUI:
             else:
                 self.cursor = 0
 
-            list_h = h - 6
+            if self.show_launch and filtered:
+                _sel_opt = self.pending[filtered[self.cursor][0]] or "(none)"
+                _opt_lines = textwrap.wrap(_sel_opt, width=max(10, w - 2)) or ["(none)"]
+            else:
+                _opt_lines = []
+            opt_panel_h = (2 + len(_opt_lines)) if _opt_lines else 0
+            list_h = h - 6 - opt_panel_h
             if self.cursor < self.scroll:
                 self.scroll = self.cursor
             elif self.cursor >= self.scroll + list_h:
@@ -341,10 +350,25 @@ class _LaunchOptionTUI:
                 except curses.error:
                     pass
 
+            # Launch option panel
+            if _opt_lines:
+                sel_name = filtered[self.cursor][1]
+                panel_top = h - 1 - 2 - len(_opt_lines)  # above blank gap + footer
+                try:
+                    stdscr.addstr(
+                        panel_top, 0,
+                        f" Launch opt [{sel_name}]:"[:w],
+                        curses.color_pair(3),
+                    )
+                    for i, line in enumerate(_opt_lines):
+                        stdscr.addstr(panel_top + 1 + i, 0, f"  {line}"[:w])
+                except curses.error:
+                    pass
+
             # Footer
             nchanges = len(self._changes())
             change_str = f"  |  {nchanges} pending" if nchanges else ""
-            footer = f" SPACE toggle  |  a select all  |  u apply+quit  |  q quit{change_str}"
+            footer = f" SPACE toggle  |  a select all  |  s show opt  |  u apply+quit  |  q quit{change_str}"
             try:
                 stdscr.addstr(h - 1, 0, footer[:w], curses.A_DIM)
             except curses.error:
@@ -374,6 +398,8 @@ class _LaunchOptionTUI:
                             self.pending[aid] = _remove_mangohud(cur)
                         elif not _has_mangohud(cur):
                             self.pending[aid] = _add_mangohud(cur, self.prefix)
+                elif key.lower() == "s":
+                    self.show_launch = not self.show_launch
                 elif key.lower() == "u":
                     return self._changes()
                 elif key.lower() == "q":

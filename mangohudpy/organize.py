@@ -11,6 +11,7 @@ from typing import List, Optional
 from .constants import BENCH_LOG_DIR, MANGOHUD_ALT_LOG, MANGOHUD_LOG_DIR, MANGOHUD_TMP_LOG, MAX_LOGS_PER_GAME
 from .utils import (
     _extract_game_name,
+    _resolve_game_name,
     find_game_for_timestamp,
     find_logs,
     load_steam_app_names,
@@ -35,7 +36,10 @@ def _parse_mangoapp_timestamp(stem: str) -> Optional[datetime.datetime]:
 
 def _rotate_game_logs(game_dir: pathlib.Path, max_logs: int = MAX_LOGS_PER_GAME) -> int:
     """Delete oldest logs if game folder exceeds max_logs. Returns deleted count."""
-    csvs = sorted(game_dir.glob("*.csv"), key=lambda p: p.stat().st_mtime)
+    csvs = sorted(
+        (p for p in game_dir.glob("*.csv") if not p.is_symlink()),
+        key=lambda p: p.stat().st_mtime,
+    )
     removed = 0
     while len(csvs) > max_logs:
         oldest = csvs.pop(0)
@@ -65,9 +69,9 @@ def cmd_organize(args: argparse.Namespace) -> int:
         and not p.name.endswith("-current-mangohud.csv")
     ]
 
-    # Load Steam session data once for mangoapp CSV renaming.
+    # Load Steam session data once for mangoapp CSV renaming and name resolution.
     steam_sessions = parse_steam_game_sessions()
-    steam_app_names = load_steam_app_names() if steam_sessions else {}
+    steam_app_names = load_steam_app_names()
 
     dest.mkdir(parents=True, exist_ok=True)
     dest_has_games = dest.exists() and any(p.is_dir() for p in dest.iterdir())
@@ -99,7 +103,7 @@ def cmd_organize(args: argparse.Namespace) -> int:
             else:
                 target_name = src.name
         else:
-            game = _extract_game_name(src.stem)
+            game = _resolve_game_name(_extract_game_name(src.stem), steam_app_names)
             target_name = src.name
         game_dir = dest / game
         target = game_dir / target_name
@@ -142,6 +146,32 @@ def cmd_organize(args: argparse.Namespace) -> int:
                     log.info("Deleted summary file: %s", p)
                 except OSError as e:
                     log.warning("Could not delete %s: %s", p, e)
+
+    # Merge any misnamed game folders into their canonical Steam names.
+    if not dry:
+        for game_dir in sorted(dest.iterdir()):
+            if not game_dir.is_dir():
+                continue
+            canonical = _resolve_game_name(game_dir.name, steam_app_names)
+            if canonical == game_dir.name:
+                continue
+            canon_dir = dest / canonical
+            canon_dir.mkdir(parents=True, exist_ok=True)
+            for f in game_dir.iterdir():
+                if f.is_symlink():
+                    f.unlink()  # stale symlinks are rebuilt below
+                    continue
+                target = canon_dir / f.name
+                if target.exists():
+                    log.info("Merge skip (exists): %s", f)
+                else:
+                    f.rename(target)
+                    log.info("Merged: %s -> %s", f, target)
+            try:
+                game_dir.rmdir()  # only removes if now empty
+                print(f"  Merged folder: {game_dir.name}/ -> {canonical}/")
+            except OSError:
+                log.warning("Could not remove %s (not empty after merge)", game_dir)
 
     if not dry:
         for game_dir in sorted(dest.iterdir()):
