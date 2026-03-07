@@ -301,7 +301,7 @@ class _LaunchOptionTUI:
             row += 1
 
             # Column header
-            stdscr.addstr(row, 0, f"  {'Game':<50}  Status"[:w], curses.A_UNDERLINE)
+            stdscr.addstr(row, 0, f"  {'Game':<45}  St."[:w], curses.A_UNDERLINE)
             row += 1
 
             # Game list
@@ -315,18 +315,18 @@ class _LaunchOptionTUI:
 
                 if changed:
                     attr = curses.color_pair(2) | curses.A_BOLD
-                    status = "[MANGOHUD *]" if has_mh else "[-       *]"
+                    status = "[ ON*]" if has_mh else "[OFF*]"
                 elif has_mh:
                     attr = curses.color_pair(1)
-                    status = "[MANGOHUD  ]"
+                    status = "[ ON ]"
                 else:
                     attr = 0
-                    status = "[-         ]"
+                    status = "[OFF ]"
 
                 if sel:
                     attr |= curses.A_REVERSE
 
-                line = f" {'>' if sel else ' '} {name:<50}  {status}"
+                line = f" {'>' if sel else ' '} {name:<45}  {status}"
                 try:
                     stdscr.addstr(row, 0, line[:w], attr)
                 except curses.error:
