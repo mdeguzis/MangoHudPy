@@ -8,7 +8,7 @@ import re
 import shutil
 from typing import List, Optional
 
-from .constants import BENCH_LOG_DIR, MANGOHUD_ALT_LOG, MANGOHUD_LOG_DIR, MAX_LOGS_PER_GAME
+from .constants import BENCH_LOG_DIR, MANGOHUD_ALT_LOG, MANGOHUD_LOG_DIR, MANGOHUD_TMP_LOG, MAX_LOGS_PER_GAME
 from .utils import (
     _extract_game_name,
     find_game_for_timestamp,
@@ -128,6 +128,20 @@ def cmd_organize(args: argparse.Namespace) -> int:
                 log.info("Deleted original: %s", src)
             except OSError as e:
                 log.warning("Could not delete %s: %s", src, e)
+
+        # Delete MangoHud auto-generated summary CSVs from source dirs -- they
+        # are noise (we compute our own summaries) and pile up indefinitely.
+        for search_dir in ([pathlib.Path(args.source)] if args.source else
+                           [MANGOHUD_LOG_DIR, MANGOHUD_TMP_LOG, MANGOHUD_ALT_LOG]):
+            if not search_dir or not search_dir.is_dir():
+                continue
+            for p in search_dir.glob("*_summary.csv"):
+                try:
+                    p.unlink()
+                    deleted += 1
+                    log.info("Deleted summary file: %s", p)
+                except OSError as e:
+                    log.warning("Could not delete %s: %s", p, e)
 
     if not dry:
         for game_dir in sorted(dest.iterdir()):
