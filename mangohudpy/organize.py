@@ -37,11 +37,24 @@ def cmd_organize(args: argparse.Namespace) -> int:
     max_logs = args.max_logs
     dry = args.dry_run
 
+    # Exclude summary files, symlink targets, and mangoapp self-logs (noise from
+    # MANGOHUD_CONFIG applying autostart_log=1 globally to the mangoapp process).
     raw_logs = [
         p for p in find_logs(src_dir)
         if not p.name.endswith("_summary.csv")
         and not p.name.endswith("-current-mangohud.csv")
+        and not p.name.startswith("mangoapp")
     ]
+
+    # Delete any mangoapp noise files (raw logs + summaries) from source.
+    if not dry:
+        src_search = src_dir or MANGOHUD_LOG_DIR
+        for p in src_search.glob("mangoapp*.csv"):
+            try:
+                p.unlink()
+                log.info("Deleted mangoapp noise file: %s", p)
+            except OSError as exc:
+                log.warning("Could not delete %s: %s", p, exc)
 
     dest.mkdir(parents=True, exist_ok=True)
     dest_has_games = dest.exists() and any(p.is_dir() for p in dest.iterdir())
@@ -91,6 +104,11 @@ def cmd_organize(args: argparse.Namespace) -> int:
         for game_dir in sorted(dest.iterdir()):
             if not game_dir.is_dir():
                 continue
+            # Remove legacy mangoapp noise folders from dest.
+            if game_dir.name == "mangoapp":
+                shutil.rmtree(game_dir)
+                log.info("Removed legacy mangoapp noise folder: %s", game_dir)
+                continue
             rotated += _rotate_game_logs(game_dir, max_logs)
 
             day_logs = sorted(
@@ -131,7 +149,7 @@ def cmd_organize(args: argparse.Namespace) -> int:
     print(f"    Rotated : {rotated} old log(s) deleted (max {max_logs}/game)")
 
     for game_dir in sorted(dest.iterdir()):
-        if not game_dir.is_dir():
+        if not game_dir.is_dir() or game_dir.name == "mangoapp":
             continue
         csvs = sorted(game_dir.glob("*.csv"))
         gn = game_dir.name
