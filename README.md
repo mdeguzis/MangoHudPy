@@ -17,18 +17,14 @@ Upload seamlessly to FlightlessSomething!
 
 ## Installation
 
-> PyPI upload coming soon. Install locally for now:
-
 ```bash
-git clone https://github.com/your-org/MangoHudPy.git
-cd MangoHudPy
-pip install -e .
+pip install mangohudpy
 ```
 
 With optional graph support (matplotlib):
 
 ```bash
-pip install -e ".[graphs]"
+pip install "mangohudpy[graphs]"
 ```
 
 The `mangohud-py` command will be available immediately after install.

@@ -2,15 +2,21 @@
 # upload-to-pypi.sh -- Build and upload mangohudpy to PyPI
 #
 # Prerequisites:
-#   pip install build twine
+#   uv (https://astral.sh/uv)
 #
 # First-time setup:
-#   1. Register at https://pypi.org and create an API token
-#   2. Save credentials in ~/.pypirc:
-#        [pypi]
-#        username = __token__
-#        password = pypi-<your-token>
-#      Or pass --token below.
+#   Create ~/.pypirc with your API token:
+#     [distutils]
+#     index-servers = pypi testpypi
+#
+#     [pypi]
+#     username = __token__
+#     password = pypi-<your-token>
+#
+#     [testpypi]
+#     repository = https://test.pypi.org/legacy/
+#     username = __token__
+#     password = pypi-<your-test-token>
 #
 # Usage:
 #   ./upload-to-pypi.sh           # upload to PyPI
@@ -20,6 +26,8 @@ set -euo pipefail
 
 PACKAGE_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$PACKAGE_DIR/dist"
+VENV_DIR="$PACKAGE_DIR/.venv-publish"
+TWINE="$VENV_DIR/bin/twine"
 USE_TEST_PYPI=0
 
 for arg in "$@"; do
@@ -29,11 +37,18 @@ for arg in "$@"; do
     esac
 done
 
+# Ensure twine is available in a dedicated venv
+if [[ ! -x "$TWINE" ]]; then
+    echo "==> Setting up twine via uv..."
+    uv venv "$VENV_DIR" --quiet
+    uv pip install --python "$VENV_DIR/bin/python" twine --quiet
+fi
+
 echo "==> Cleaning previous builds..."
 rm -rf "$DIST_DIR" "$PACKAGE_DIR/build" "$PACKAGE_DIR"/*.egg-info
 
 echo "==> Building source distribution and wheel..."
-python3 -m build "$PACKAGE_DIR"
+uv build "$PACKAGE_DIR"
 
 echo ""
 echo "==> Built packages:"
@@ -42,15 +57,13 @@ ls -lh "$DIST_DIR"
 echo ""
 if [[ $USE_TEST_PYPI -eq 1 ]]; then
     echo "==> Uploading to TestPyPI..."
-    python3 -m twine upload \
-        --repository-url https://test.pypi.org/legacy/ \
-        "$DIST_DIR"/*
+    "$TWINE" upload --repository testpypi "$DIST_DIR"/*
     echo ""
     echo "==> Done. Install with:"
     echo "    pip install --index-url https://test.pypi.org/simple/ mangohudpy"
 else
     echo "==> Uploading to PyPI..."
-    python3 -m twine upload "$DIST_DIR"/*
+    "$TWINE" upload "$DIST_DIR"/*
     echo ""
     echo "==> Done. Install with:"
     echo "    pip install mangohudpy"
