@@ -1,6 +1,7 @@
 """Shared utility functions: logging setup, OS detection, CSV parsing, helpers."""
 from __future__ import annotations
 
+import datetime
 import logging
 import pathlib
 import re
@@ -15,6 +16,10 @@ from .constants import (
     MANGOHUD_LOG_DIR,
     MANGOHUD_TMP_LOG,
     PROG_NAME,
+    STEAM_APPS_DIR,
+    STEAM_FLATPAK_APPS_DIR,
+    STEAM_FLATPAK_LOG_DIR,
+    STEAM_LOG_DIR,
 )
 
 log = logging.getLogger(PROG_NAME)
@@ -223,4 +228,92 @@ def _fcol(cols: List[str], cands: List[str]) -> Optional[str]:
     for c in cands:
         if c.lower() in m:
             return m[c.lower()]
+    return None
+
+
+# ── Steam session helpers ──────────────────────────────────────────────
+
+
+def _sanitize_game_name(name: str) -> str:
+    """Strip filesystem-unsafe characters from a Steam game name."""
+    safe = re.sub(r'[\\/:*?"<>|™®©]', "", name)
+    safe = re.sub(r"\s+", " ", safe).strip()
+    return safe[:64] if safe else "UnknownGame"
+
+
+def load_steam_app_names() -> Dict[str, str]:
+    """Return {app_id: sanitized_name} from steamapps/*.acf files."""
+    apps_dir = STEAM_APPS_DIR if STEAM_APPS_DIR.is_dir() else STEAM_FLATPAK_APPS_DIR
+    names: Dict[str, str] = {}
+    if not apps_dir.is_dir():
+        return names
+    for acf in apps_dir.glob("appmanifest_*.acf"):
+        app_id = app_name = None
+        for line in acf.read_text(errors="replace").splitlines():
+            m = re.match(r'\s*"appid"\s+"(\d+)"', line)
+            if m:
+                app_id = m.group(1)
+            m = re.match(r'\s*"name"\s+"(.+)"', line)
+            if m:
+                app_name = m.group(1)
+            if app_id and app_name:
+                break
+        if app_id and app_name:
+            names[app_id] = _sanitize_game_name(app_name)
+    return names
+
+
+def parse_steam_game_sessions() -> (
+    List[Tuple[str, datetime.datetime, Optional[datetime.datetime]]]
+):
+    """Parse Steam content_log for game run sessions.
+
+    Returns list of (app_id, start_dt, end_dt_or_None), oldest first.
+    Reads content_log.previous.txt then content_log.txt so the full
+    history is covered even after Steam rotates the log.
+    """
+    log_dir = STEAM_LOG_DIR if STEAM_LOG_DIR.is_dir() else STEAM_FLATPAK_LOG_DIR
+    sessions: List[Tuple[str, datetime.datetime, Optional[datetime.datetime]]] = []
+    active: Dict[str, datetime.datetime] = {}
+    ts_re = re.compile(
+        r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] AppID (\d+) state changed : (.+)"
+    )
+    for log_name in ("content_log.previous.txt", "content_log.txt"):
+        log_path = log_dir / log_name
+        if not log_path.exists():
+            continue
+        for line in log_path.read_text(errors="replace").splitlines():
+            m = ts_re.match(line)
+            if not m:
+                continue
+            ts_str, app_id, state = m.group(1), m.group(2), m.group(3)
+            try:
+                ts = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+            if "App Running" in state and "Terminating" not in state:
+                active[app_id] = ts
+            elif app_id in active and "App Running" not in state:
+                sessions.append((app_id, active.pop(app_id), ts))
+    for app_id, start in active.items():
+        sessions.append((app_id, start, None))
+    return sessions
+
+
+def find_game_for_timestamp(
+    ts: datetime.datetime,
+    sessions: List[Tuple[str, datetime.datetime, Optional[datetime.datetime]]],
+    app_names: Dict[str, str],
+    pre_tolerance_secs: int = 180,
+) -> Optional[str]:
+    """Return the game name whose Steam session overlaps ts, or None.
+
+    pre_tolerance_secs: how many seconds before "App Running" to consider
+    the game already active (covers load time before Steam reports it).
+    """
+    for app_id, start, end in sessions:
+        window_start = start - datetime.timedelta(seconds=pre_tolerance_secs)
+        window_end = end if end is not None else datetime.datetime.max
+        if window_start <= ts <= window_end:
+            return app_names.get(app_id)
     return None

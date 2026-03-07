@@ -79,8 +79,12 @@ def sync_gamescope_logging_env(log_dir: Optional[pathlib.Path] = None) -> bool:
     there are never seen by game processes.
 
     The MANGOHUD_CONFIG env var is applied *on top* of MANGOHUD_CONFIGFILE, so
-    writing it to ~/.config/environment.d/ injects logging keys into every game
-    without disturbing the display behaviour that mangoapp controls.
+    writing it to ~/.config/environment.d/ injects logging keys into game
+    processes (that use `mangohud %command%`) without disturbing the display
+    behaviour that mangoapp controls.  autostart_log is intentionally 0 here:
+    setting it to 1 causes mangoapp itself to log every session (red recording
+    dot always visible, slider broken, floods of mangoapp_*.csv).  Use
+    Shift_L+F2 to start/stop logging manually inside a game.
     """
     effective_log_dir = log_dir or MANGOHUD_LOG_DIR
     effective_log_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +95,7 @@ def sync_gamescope_logging_env(log_dir: Optional[pathlib.Path] = None) -> bool:
         "log_duration": "0",
         "log_interval": "100",
         "log_versioning": "1",
-        "autostart_log": "1",
+        "autostart_log": "0",
     }
     config_value = ",".join(f"{k}={v}" for k, v in logging_keys.items())
 

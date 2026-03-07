@@ -6,7 +6,7 @@ import pathlib
 from typing import Any, Dict
 
 PROG_NAME = "mangohud-py"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 XDG_CONFIG = pathlib.Path(
     os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")
@@ -286,6 +286,17 @@ VALVE_PRESETS: Dict[int, Dict[str, Any]] = {
         },
     },
 }
+
+STEAM_LOG_DIR = pathlib.Path.home() / ".local/share/Steam/logs"
+STEAM_APPS_DIR = pathlib.Path.home() / ".local/share/Steam/steamapps"
+# Flatpak Steam fallbacks
+STEAM_FLATPAK_LOG_DIR = (
+    pathlib.Path.home() / ".var/app/com.valvesoftware.Steam/.local/share/Steam/logs"
+)
+STEAM_FLATPAK_APPS_DIR = (
+    pathlib.Path.home()
+    / ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps"
+)
 
 LOG_FMT = "%(asctime)s [%(levelname)-7s] %(name)s: %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"

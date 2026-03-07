@@ -4,11 +4,33 @@ from __future__ import annotations
 import argparse
 import datetime
 import pathlib
+import re
 import shutil
-from typing import List
+from typing import List, Optional
 
 from .constants import BENCH_LOG_DIR, MANGOHUD_ALT_LOG, MANGOHUD_LOG_DIR, MAX_LOGS_PER_GAME
-from .utils import _extract_game_name, find_logs, log
+from .utils import (
+    _extract_game_name,
+    find_game_for_timestamp,
+    find_logs,
+    load_steam_app_names,
+    log,
+    parse_steam_game_sessions,
+)
+
+
+def _parse_mangoapp_timestamp(stem: str) -> Optional[datetime.datetime]:
+    """Extract datetime from a mangoapp CSV stem like mangoapp_2026-03-07_16-15-37."""
+    m = re.match(r"^mangoapp_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$", stem)
+    if not m:
+        return None
+    try:
+        return datetime.datetime.strptime(
+            f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}",
+            "%Y-%m-%d %H:%M:%S",
+        )
+    except ValueError:
+        return None
 
 
 def _rotate_game_logs(game_dir: pathlib.Path, max_logs: int = MAX_LOGS_PER_GAME) -> int:
@@ -37,24 +59,15 @@ def cmd_organize(args: argparse.Namespace) -> int:
     max_logs = args.max_logs
     dry = args.dry_run
 
-    # Exclude summary files, symlink targets, and mangoapp self-logs (noise from
-    # MANGOHUD_CONFIG applying autostart_log=1 globally to the mangoapp process).
     raw_logs = [
         p for p in find_logs(src_dir)
         if not p.name.endswith("_summary.csv")
         and not p.name.endswith("-current-mangohud.csv")
-        and not p.name.startswith("mangoapp")
     ]
 
-    # Delete any mangoapp noise files (raw logs + summaries) from source.
-    if not dry:
-        src_search = src_dir or MANGOHUD_LOG_DIR
-        for p in src_search.glob("mangoapp*.csv"):
-            try:
-                p.unlink()
-                log.info("Deleted mangoapp noise file: %s", p)
-            except OSError as exc:
-                log.warning("Could not delete %s: %s", p, exc)
+    # Load Steam session data once for mangoapp CSV renaming.
+    steam_sessions = parse_steam_game_sessions()
+    steam_app_names = load_steam_app_names() if steam_sessions else {}
 
     dest.mkdir(parents=True, exist_ok=True)
     dest_has_games = dest.exists() and any(p.is_dir() for p in dest.iterdir())
@@ -71,9 +84,25 @@ def cmd_organize(args: argparse.Namespace) -> int:
     originals_to_delete: List[pathlib.Path] = []
 
     for src in raw_logs:
-        game = _extract_game_name(src.stem)
+        if src.stem.startswith("mangoapp"):
+            csv_ts = _parse_mangoapp_timestamp(src.stem)
+            if csv_ts and steam_sessions:
+                detected = find_game_for_timestamp(csv_ts, steam_sessions, steam_app_names)
+                game = detected or "mangoapp"
+            else:
+                game = "mangoapp"
+            if game != "mangoapp":
+                # Rename: swap "mangoapp" prefix for the detected game name.
+                suffix = src.name[len("mangoapp"):]  # e.g. "_2026-03-07_16-15-37.csv"
+                target_name = game + suffix
+                log.info("mangoapp CSV matched to '%s' via Steam session", game)
+            else:
+                target_name = src.name
+        else:
+            game = _extract_game_name(src.stem)
+            target_name = src.name
         game_dir = dest / game
-        target = game_dir / src.name
+        target = game_dir / target_name
 
         if target.exists():
             skipped += 1
@@ -103,11 +132,6 @@ def cmd_organize(args: argparse.Namespace) -> int:
     if not dry:
         for game_dir in sorted(dest.iterdir()):
             if not game_dir.is_dir():
-                continue
-            # Remove legacy mangoapp noise folders from dest.
-            if game_dir.name == "mangoapp":
-                shutil.rmtree(game_dir)
-                log.info("Removed legacy mangoapp noise folder: %s", game_dir)
                 continue
             rotated += _rotate_game_logs(game_dir, max_logs)
 
@@ -149,7 +173,7 @@ def cmd_organize(args: argparse.Namespace) -> int:
     print(f"    Rotated : {rotated} old log(s) deleted (max {max_logs}/game)")
 
     for game_dir in sorted(dest.iterdir()):
-        if not game_dir.is_dir() or game_dir.name == "mangoapp":
+        if not game_dir.is_dir():
             continue
         csvs = sorted(game_dir.glob("*.csv"))
         gn = game_dir.name
