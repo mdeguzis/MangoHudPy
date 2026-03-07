@@ -91,6 +91,7 @@ def sync_gamescope_logging_env(log_dir: Optional[pathlib.Path] = None) -> bool:
         "log_duration": "0",
         "log_interval": "100",
         "log_versioning": "1",
+        "autostart_log": "1",
     }
     config_value = ",".join(f"{k}={v}" for k, v in logging_keys.items())
 

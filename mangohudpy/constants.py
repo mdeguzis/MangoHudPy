@@ -6,7 +6,7 @@ import pathlib
 from typing import Any, Dict
 
 PROG_NAME = "mangohud-py"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 XDG_CONFIG = pathlib.Path(
     os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")
@@ -173,25 +173,27 @@ CONFIG_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 # ── Valve / SteamOS preset definitions ─────────────────────────────────
+# mangoapp writes preset=N to MANGOHUD_CONFIGFILE when the Steam Performance
+# slider changes.  The mapping is:
+#   Slider Off  → preset=0  (MangoHud built-in: no display, no preset lookup)
+#   Slider 1    → preset=1  (FPS only)
+#   Slider 2    → preset=2  (Extended horizontal bar)
+#   Slider 3    → preset=3  (Full detail)
+#   Slider 4    → preset=4  (Full detail + extras, Bazzite extra level)
+# preset=0 is handled internally by MangoHud (no_display).  We only need
+# [preset 1]–[preset 4] in presets.conf.
 _PRESET_LOGGING_KEYS: Dict[str, Any] = {
     "output_folder": str(MANGOHUD_LOG_DIR),
     "toggle_logging": "Shift_L+F2",
     "log_duration": 0,
     "log_interval": 100,
     "log_versioning": 1,
-    "autostart_log": 0,
+    "autostart_log": 1,
 }
 
 VALVE_PRESETS: Dict[int, Dict[str, Any]] = {
     1: {
-        "description": "Valve preset 1 (no display) + logging",
-        "values": {
-            "no_display": 1,
-            **_PRESET_LOGGING_KEYS,
-        },
-    },
-    2: {
-        "description": "Valve preset 2 (FPS only) + logging",
+        "description": "Valve preset 1 (FPS only) + logging",
         "values": {
             "legacy_layout": 0,
             "cpu_stats": 0,
@@ -202,8 +204,8 @@ VALVE_PRESETS: Dict[int, Dict[str, Any]] = {
             **_PRESET_LOGGING_KEYS,
         },
     },
-    3: {
-        "description": "Valve preset 3 (extended) + logging",
+    2: {
+        "description": "Valve preset 2 (extended) + logging",
         "values": {
             "legacy_layout": 0,
             "horizontal": 1,
@@ -217,8 +219,8 @@ VALVE_PRESETS: Dict[int, Dict[str, Any]] = {
             **_PRESET_LOGGING_KEYS,
         },
     },
-    4: {
-        "description": "Valve preset 4 (full detail) + logging",
+    3: {
+        "description": "Valve preset 3 (full detail) + logging",
         "values": {
             "legacy_layout": 0,
             "gpu_stats": 1,
@@ -245,6 +247,41 @@ VALVE_PRESETS: Dict[int, Dict[str, Any]] = {
             "vulkan_driver": 1,
             "gpu_name": 1,
             "core_load": 1,
+            **_PRESET_LOGGING_KEYS,
+        },
+    },
+    4: {
+        "description": "Valve preset 4 (full detail + extras) + logging",
+        "values": {
+            "legacy_layout": 0,
+            "gpu_stats": 1,
+            "cpu_stats": 1,
+            "cpu_temp": 1,
+            "gpu_temp": 1,
+            "cpu_power": 1,
+            "gpu_power": 1,
+            "cpu_mhz": 1,
+            "gpu_core_clock": 1,
+            "gpu_mem_clock": 1,
+            "gpu_mem_temp": 1,
+            "vram": 1,
+            "ram": 1,
+            "swap": 1,
+            "fps": 1,
+            "frametime": 1,
+            "frame_timing": 1,
+            "battery": 1,
+            "battery_power": 1,
+            "gamepad_battery": 1,
+            "fan": 1,
+            "throttling_status": 1,
+            "wine": 1,
+            "winesync": 1,
+            "engine_version": 1,
+            "vulkan_driver": 1,
+            "gpu_name": 1,
+            "core_load": 1,
+            "procmem": 1,
             **_PRESET_LOGGING_KEYS,
         },
     },
