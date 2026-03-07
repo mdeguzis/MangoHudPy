@@ -91,14 +91,36 @@ mangohud-py upload
 
 ### Steam Deck (SteamOS — Game Mode)
 
-The Steam Deck uses the same `gamescope-session` + `mangoapp` mechanism as Bazzite —
-`MangoHud.conf` and `presets.conf` are not effective for games in Game Mode.
+The Steam Deck uses the same `gamescope-session` + `mangoapp` mechanism as Bazzite,
+but differs in one important way: **SteamOS auto-injects MangoHud into games** when the
+Performance overlay is active. This means `presets.conf` is read by the game process and
+logging works without any per-game launch option.
 
-Use the `launch-option` TUI from Desktop Mode (CEF is typically available there). If
-Steam is not running when you use the TUI, changes are written to `localconfig.vdf`
-and take effect on next Steam restart.
+**Two methods are available — use either or both:**
 
-**To set launch options manually:**
+#### Method 1: `presets.conf` (simplest — works system-wide)
+
+```bash
+mangohud-py configure
+```
+
+This writes `~/.config/MangoHud/presets.conf` with logging keys injected into all 4
+Valve preset levels. With the Performance slider at position 1–4, MangoHud logs
+automatically for every game — no per-game setup needed.
+
+#### Method 2: `launch-option` TUI (per-game, silent logging)
+
+Same as Bazzite — sets `no_display=1` + `autostart_log=1` per game so logging runs
+silently regardless of the slider position.
+
+```bash
+mangohud-py launch-option
+```
+
+Run from Desktop Mode (CEF is typically available there). If Steam is not running,
+changes are written to `localconfig.vdf` and take effect on next Steam restart.
+
+**To set launch options manually** (without the TUI):
 1. Switch to Desktop Mode
 2. Right-click a game in Steam → Properties → Launch Options
 3. Paste:
@@ -151,7 +173,7 @@ mangohud-py configure --preset logging --log-dir /mnt/data/mangologs
 Performance slider positions (1–4) to MangoHud display + logging configs. On desktop,
 MangoHud reads this file normally, so logging activates at any slider position.
 
-> On Bazzite/SteamOS Game Mode, `presets.conf` is not used for games — see above.
+> On Bazzite Game Mode, `presets.conf` is not used for games — MangoHud is not auto-injected there. Use `launch-option` instead. On Steam Deck (SteamOS), auto-injection means `presets.conf` does work.
 
 ---
 
