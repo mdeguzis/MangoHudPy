@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mangohudpy"
-version = "1.0.7"
+version = "1.0.8"
 description = "MangoHud Performance Profiler for Bazzite / SteamOS"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["vdf"]
+dependencies = ["vdf", "websocket-client"]
 
 [project.optional-dependencies]
 graphs = ["matplotlib"]
