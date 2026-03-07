@@ -6,7 +6,7 @@ import pathlib
 from typing import Any, Dict
 
 PROG_NAME = "mangohud-py"
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 XDG_CONFIG = pathlib.Path(
     os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")
@@ -25,15 +25,6 @@ MANGOHUD_ALT_LOG = XDG_DATA / "MangoHud"
 BENCH_LOG_DIR = MANGOHUD_LOG_DIR  # organized logs live alongside raw logs
 CHART_BASE_DIR = pathlib.Path.home() / "mangohud-perf"
 MAX_LOGS_PER_GAME = 15
-
-# On Bazzite/SteamOS the gamescope session sets MANGOHUD_CONFIGFILE to a temp
-# file managed by mangoapp.  This completely overrides MangoHud.conf and
-# presets.conf (MANGOHUD_CONFIGFILE is highest priority).  mangoapp only writes
-# display keys to that temp file -- logging keys are never applied.
-# Fix: write MANGOHUD_CONFIG (applied on top of MANGOHUD_CONFIGFILE) with the
-# logging keys to ~/.config/environment.d/ which gamescope-session-plus sources
-# at startup before Steam launches.
-MANGOHUD_ENV_CONF = XDG_CONFIG / "environment.d" / "mangohud-logging.conf"
 
 # MangoHud config search order (highest priority first)
 MANGOHUD_CONF_PATHS = [

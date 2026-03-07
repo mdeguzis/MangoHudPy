@@ -18,7 +18,6 @@ from .constants import (
     MANGOHUD_CONF_DIR,
     MANGOHUD_CONF_FILE,
     MANGOHUD_CONF_PATHS,
-    MANGOHUD_ENV_CONF,
     MANGOHUD_LOG_DIR,
     PROG_NAME,
     VALVE_PRESETS,
@@ -73,56 +72,6 @@ def _ensure_bottleneck_keys(conf_path: pathlib.Path) -> List[str]:
     return list(missing.keys())
 
 
-def sync_gamescope_logging_env(log_dir: Optional[pathlib.Path] = None) -> bool:
-    """Write MANGOHUD_CONFIG logging keys to ~/.config/environment.d/.
-
-    On Bazzite/SteamOS, gamescope-session-plus exports MANGOHUD_CONFIGFILE
-    pointing to a temp file managed by mangoapp.  Because MANGOHUD_CONFIGFILE
-    takes precedence over MangoHud.conf and presets.conf, logging keys set
-    there are never seen by game processes.
-
-    The MANGOHUD_CONFIG env var is applied *on top* of MANGOHUD_CONFIGFILE, so
-    writing it to ~/.config/environment.d/ injects logging keys into game
-    processes (that use `mangohud %command%`) without disturbing the display
-    behaviour that mangoapp controls.  autostart_log is intentionally 0 here:
-    setting it to 1 causes mangoapp itself to log every session (red recording
-    dot always visible, slider broken, floods of mangoapp_*.csv).  Use
-    Shift_L+F2 to start/stop logging manually inside a game.
-    """
-    effective_log_dir = log_dir or MANGOHUD_LOG_DIR
-    effective_log_dir.mkdir(parents=True, exist_ok=True)
-
-    logging_keys = {
-        "output_folder": str(effective_log_dir),
-        "toggle_logging": "Shift_L+F2",
-        "log_duration": "0",
-        "log_interval": "100",
-        "log_versioning": "1",
-        "autostart_log": "0",
-    }
-    config_value = ",".join(f"{k}={v}" for k, v in logging_keys.items())
-
-    MANGOHUD_ENV_CONF.parent.mkdir(parents=True, exist_ok=True)
-    content = (
-        f"# MangoHud logging env -- written by {PROG_NAME} v{VERSION}\n"
-        f"# Injects logging keys via MANGOHUD_CONFIG so they survive the\n"
-        f"# gamescope-session MANGOHUD_CONFIGFILE temp-file override.\n"
-        f"# Sourced by gamescope-session-plus from ~/.config/environment.d/\n"
-        f"# Changes take effect on next gamescope session (re-login).\n"
-        f'MANGOHUD_CONFIG="{config_value}"\n'
-    )
-    try:
-        MANGOHUD_ENV_CONF.write_text(content, encoding="utf-8")
-    except OSError as exc:
-        log.error("Failed to write %s: %s", MANGOHUD_ENV_CONF, exc)
-        return False
-
-    print(f"  Gamescope logging env: {MANGOHUD_ENV_CONF}")
-    print(f"    MANGOHUD_CONFIG set with logging keys -> {effective_log_dir}")
-    print("    Re-login to gamescope session for changes to take effect.")
-    return True
-
-
 def sync_config_to_preset(log_dir: Optional[pathlib.Path] = None) -> bool:
     """Write all 4 Valve presets (with logging) to ~/.config/MangoHud/presets.conf."""
     target_path = MANGOHUD_CONF_DIR / "presets.conf"
@@ -168,9 +117,6 @@ def sync_config_to_preset(log_dir: Optional[pathlib.Path] = None) -> bool:
     for num in sorted(VALVE_PRESETS):
         desc = VALVE_PRESETS[num]["description"]
         print(f"      Preset {num}: {desc}")
-
-    if is_steamos():
-        sync_gamescope_logging_env(log_dir=log_dir)
 
     return True
 
@@ -257,9 +203,11 @@ def cmd_configure(args: argparse.Namespace) -> int:
     if is_steamos():
         print("\n    Bazzite/SteamOS note:")
         print("      gamescope-session sets MANGOHUD_CONFIGFILE to a temp file managed")
-        print("      by mangoapp, which overrides MangoHud.conf and presets.conf.")
-        print(f"      Logging keys written to: {MANGOHUD_ENV_CONF}")
-        print("      Re-login to your gamescope session for logging to take effect.")
+        print("      by mangoapp, overriding MangoHud.conf and presets.conf for display.")
+        print("      For per-game CSV logging, add to each game's Steam launch options:")
+        print("        mangohud %command%")
+        print("      Then press Shift_L+F2 in-game to start/stop recording.")
+        print("      'mangohud-py organize' will auto-rename logs to the game name.")
     return 0
 
 
