@@ -6,7 +6,7 @@ import pathlib
 from typing import Any, Dict
 
 PROG_NAME = "mangohud-py"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 XDG_CONFIG = pathlib.Path(
     os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")

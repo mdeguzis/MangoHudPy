@@ -306,6 +306,40 @@ def build_parser() -> argparse.ArgumentParser:
     from .organize import cmd_organize
     po.set_defaults(func=cmd_organize)
 
+    # ── auto-organize ──────────────────────────────────────────────────
+    pao = sub.add_parser(
+        "auto-organize",
+        help="Install/remove a systemd timer that runs organize automatically.",
+        description=textwrap.dedent(
+            """\
+            Install a systemd user service + timer that runs 'organize'
+            periodically to keep logs sorted and summary CSVs cleaned up.
+
+            Runs 2 minutes after login, then on the configured interval.
+
+            Examples:
+              mangohud-py auto-organize            # enable (default: every 30 min)
+              mangohud-py auto-organize --interval 15
+              mangohud-py auto-organize --disable
+        """
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pao.add_argument(
+        "--interval",
+        type=int,
+        default=30,
+        metavar="MIN",
+        help="How often to run organize, in minutes (default: 30).",
+    )
+    pao.add_argument(
+        "--disable",
+        action="store_true",
+        help="Stop and remove the auto-organize timer.",
+    )
+    from .config import cmd_auto_organize
+    pao.set_defaults(func=cmd_auto_organize)
+
     # ── bundle ─────────────────────────────────────────────────────────
     pb = sub.add_parser(
         "bundle",

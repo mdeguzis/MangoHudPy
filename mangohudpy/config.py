@@ -6,6 +6,9 @@ import datetime
 import logging
 import os
 import pathlib
+import shutil
+import subprocess
+import sys
 import textwrap
 from typing import Any, Dict, List, Optional
 
@@ -257,4 +260,104 @@ def cmd_configure(args: argparse.Namespace) -> int:
         print("      by mangoapp, which overrides MangoHud.conf and presets.conf.")
         print(f"      Logging keys written to: {MANGOHUD_ENV_CONF}")
         print("      Re-login to your gamescope session for logging to take effect.")
+    return 0
+
+
+# ── auto-organize systemd units ────────────────────────────────────────
+
+_SYSTEMD_USER_DIR = pathlib.Path.home() / ".config/systemd/user"
+_SERVICE_NAME = "mangohud-organize.service"
+_TIMER_NAME = "mangohud-organize.timer"
+
+
+def _resolve_exec() -> str:
+    """Return the best ExecStart path for the installed mangohud-py script."""
+    p = shutil.which("mangohud-py")
+    if p:
+        return p
+    return f"{sys.executable} -m mangohudpy"
+
+
+def cmd_auto_organize(args: argparse.Namespace) -> int:
+    """Install or remove the systemd user timer that runs 'organize' periodically."""
+    if args.disable:
+        return _disable_auto_organize()
+    return _enable_auto_organize(args.interval)
+
+
+def _enable_auto_organize(interval_min: int) -> int:
+    exec_path = _resolve_exec()
+    _SYSTEMD_USER_DIR.mkdir(parents=True, exist_ok=True)
+
+    service = _SYSTEMD_USER_DIR / _SERVICE_NAME
+    timer = _SYSTEMD_USER_DIR / _TIMER_NAME
+
+    service.write_text(
+        textwrap.dedent(f"""\
+            [Unit]
+            Description=MangoHud organize -- sort logs into per-game folders
+            After=network.target
+
+            [Service]
+            Type=oneshot
+            ExecStart={exec_path} organize
+            StandardOutput=journal
+            StandardError=journal
+        """),
+        encoding="utf-8",
+    )
+
+    timer.write_text(
+        textwrap.dedent(f"""\
+            [Unit]
+            Description=Run MangoHud organize every {interval_min} minutes
+
+            [Timer]
+            OnBootSec=2min
+            OnUnitActiveSec={interval_min}min
+            Unit={_SERVICE_NAME}
+
+            [Install]
+            WantedBy=timers.target
+        """),
+        encoding="utf-8",
+    )
+
+    print(f"  Wrote: {service}")
+    print(f"  Wrote: {timer}")
+
+    try:
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+        subprocess.run(
+            ["systemctl", "--user", "enable", "--now", _TIMER_NAME], check=True
+        )
+    except subprocess.CalledProcessError as exc:
+        log.error("systemctl failed: %s", exc)
+        return 1
+
+    print(f"\n  Auto-organize enabled (every {interval_min} min, 2 min after login).")
+    print(f"    Timer : {_TIMER_NAME}")
+    print(f"    Exec  : {exec_path} organize")
+    print("    Status: systemctl --user status mangohud-organize.timer")
+    print("    Logs  : journalctl --user -u mangohud-organize.service")
+    return 0
+
+
+def _disable_auto_organize() -> int:
+    try:
+        subprocess.run(
+            ["systemctl", "--user", "disable", "--now", _TIMER_NAME],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        log.error("systemctl failed: %s", exc)
+        return 1
+
+    for unit in (_SYSTEMD_USER_DIR / _SERVICE_NAME, _SYSTEMD_USER_DIR / _TIMER_NAME):
+        if unit.exists():
+            unit.unlink()
+            print(f"  Removed: {unit}")
+
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=False)
+    print("  Auto-organize disabled and unit files removed.")
     return 0
