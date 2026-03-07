@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 
-from .constants import MANGOHUD_ENV_CONF, MANGOHUD_LOG_DIR
+from .constants import MANGOHUD_LOG_DIR
 from .utils import find_logs, is_steamos, log, mangohud_installed, parse_csv
 
 
@@ -61,20 +61,7 @@ def cmd_test(args: argparse.Namespace) -> int:
     log_dir = pathlib.Path(args.log_dir) if args.log_dir else MANGOHUD_LOG_DIR
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    if MANGOHUD_ENV_CONF.exists() and not args.live:
-        raw = MANGOHUD_ENV_CONF.read_text(encoding="utf-8")
-        mangohud_config = ""
-        for line in raw.splitlines():
-            line = line.strip()
-            if line.startswith("MANGOHUD_CONFIG="):
-                mangohud_config = line.split("=", 1)[1].strip().strip('"')
-                break
-        if not mangohud_config:
-            log.warning("Could not parse MANGOHUD_CONFIG from %s", MANGOHUD_ENV_CONF)
-    else:
-        mangohud_config = None
-
-    if not mangohud_config:
+    if True:
         logging_keys = {
             "output_folder": str(log_dir),
             "toggle_logging": "Shift_L+F2",
@@ -157,7 +144,5 @@ def cmd_test(args: argparse.Namespace) -> int:
     else:
         print("  FAIL -- no log file appeared in:", log_dir)
         print("    Check that MangoHud is properly installed and DISPLAY is reachable.")
-        if not MANGOHUD_ENV_CONF.exists():
-            print(f"\n    {MANGOHUD_ENV_CONF} not found.")
-            print("    Run: mango-hud-profiler configure --preset logging")
+        print("    Run: mangohud-py configure --preset logging")
         return 1

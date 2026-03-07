@@ -306,6 +306,40 @@ def build_parser() -> argparse.ArgumentParser:
     from .organize import cmd_organize
     po.set_defaults(func=cmd_organize)
 
+    # ── launch-option ──────────────────────────────────────────────────
+    plo = sub.add_parser(
+        "launch-option",
+        help="TUI to set per-game Steam mangohud launch options via localconfig.vdf.",
+        description=textwrap.dedent(
+            f"""\
+            Interactive TUI: browse your Steam library, toggle mangohud auto-logging
+            per game, and write the launch option directly into localconfig.vdf.
+
+            The injected launch option sets autostart_log=1 scoped only to that
+            game process — mangoapp is unaffected so the perf slider keeps working.
+
+            Controls:
+              Type      filter game list
+              Up/Down   navigate
+              Space     toggle mangohud for selected game
+              u         apply changes and quit
+              q         quit without saving
+              Esc       clear filter
+
+            Game Mode: changes take effect immediately but are lost when Steam restarts.
+            Desktop Mode: changes persist across Steam restarts.
+        """
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    plo.add_argument(
+        "--log-dir",
+        metavar="DIR",
+        help=f"Override log output directory (default: {MANGOHUD_LOG_DIR}).",
+    )
+    from .launch import cmd_launch_option
+    plo.set_defaults(func=cmd_launch_option)
+
     # ── auto-organize ──────────────────────────────────────────────────
     pao = sub.add_parser(
         "auto-organize",
