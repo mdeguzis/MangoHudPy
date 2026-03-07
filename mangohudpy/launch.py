@@ -344,7 +344,7 @@ class _LaunchOptionTUI:
             # Footer
             nchanges = len(self._changes())
             change_str = f"  |  {nchanges} pending" if nchanges else ""
-            footer = f" SPACE toggle  |  u apply+quit  |  q quit{change_str}"
+            footer = f" SPACE toggle  |  a select all  |  u apply+quit  |  q quit{change_str}"
             try:
                 stdscr.addstr(h - 1, 0, footer[:w], curses.A_DIM)
             except curses.error:
@@ -365,6 +365,15 @@ class _LaunchOptionTUI:
                 elif key == " ":
                     if filtered:
                         self._toggle(filtered[self.cursor][0])
+                elif key.lower() == "a":
+                    # Select all visible: enable all if any are off, else disable all
+                    all_on = all(_has_mangohud(self.pending[aid]) for aid, _ in filtered)
+                    for aid, _ in filtered:
+                        cur = self.pending[aid]
+                        if all_on:
+                            self.pending[aid] = _remove_mangohud(cur)
+                        elif not _has_mangohud(cur):
+                            self.pending[aid] = _add_mangohud(cur, self.prefix)
                 elif key.lower() == "u":
                     return self._changes()
                 elif key.lower() == "q":
