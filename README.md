@@ -378,13 +378,16 @@ pip install -e ".[graphs,gui]"
 ### Running from source
 
 ```bash
-# CLI
+# Option A — activate the venv first
+source .venv/bin/activate
 mangohud-py --help
-
-# GUI (auto-detects Wayland if no DISPLAY is set)
 mangohud-py-gui
 
-# Or run directly without installing
+# Option B — run without activating (uv handles it)
+uv run mangohud-py --help
+uv run mangohud-py-gui
+
+# Option C — run the entry point directly
 python main.py --help
 ```
 
