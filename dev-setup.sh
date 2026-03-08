@@ -18,9 +18,15 @@ fi
 echo "==> Creating virtual environment..."
 uv venv "$PACKAGE_DIR/.venv"
 
-echo "==> Installing package in editable mode with optional deps..."
-uv pip install --python "$PACKAGE_DIR/.venv/bin/python" -e "$PACKAGE_DIR[graphs]"
+echo "==> Installing package in editable mode with all optional deps..."
+uv pip install --python "$PACKAGE_DIR/.venv/bin/python" -e "$PACKAGE_DIR[graphs,gui]"
 
 echo ""
 echo "==> Done. Activate with:"
 echo "    source .venv/bin/activate"
+echo ""
+echo "==> Run CLI:"
+echo "    mangohud-py --help"
+echo ""
+echo "==> Run GUI:"
+echo "    mangohud-py-gui"

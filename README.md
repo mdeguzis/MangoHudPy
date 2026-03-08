@@ -342,6 +342,63 @@ mangohud-py upload --append
 
 ---
 
+## Development
+
+### Quick setup
+
+```bash
+git clone https://github.com/mdeguzis/MangoHudPy
+cd MangoHudPy
+./dev-setup.sh
+source .venv/bin/activate
+```
+
+`dev-setup.sh` installs [uv](https://astral.sh/uv) if needed, creates a `.venv`, and
+installs the package in editable mode with all optional dependencies (`graphs` + `gui`).
+
+### Manual setup (pip)
+
+```bash
+git clone https://github.com/mdeguzis/MangoHudPy
+cd MangoHudPy
+
+# CLI only
+pip install -e .
+
+# CLI + graphs
+pip install -e ".[graphs]"
+
+# CLI + GUI
+pip install -e ".[gui]"
+
+# Everything
+pip install -e ".[graphs,gui]"
+```
+
+### Running from source
+
+```bash
+# CLI
+mangohud-py --help
+
+# GUI (auto-detects Wayland if no DISPLAY is set)
+mangohud-py-gui
+
+# Or run directly without installing
+python main.py --help
+```
+
+### Publishing to PyPI
+
+```bash
+./upload-to-pypi.sh           # build + upload to PyPI
+./upload-to-pypi.sh --test    # build + upload to TestPyPI first
+```
+
+Requires `~/.pypirc` with a valid API token. See comments inside the script.
+
+---
+
 ## Requirements
 
 - Python 3.9+
