@@ -50,6 +50,13 @@ def main(argv=None) -> int:
 
     apply_theme("dark", app)
 
+    # Install XDG desktop entry + icon on first run (silent no-op if already done)
+    try:
+        from mangohudpy.desktop import install_desktop
+        install_desktop()
+    except Exception:
+        pass
+
     win = MainWindow()
     win.show()
     return app.exec()

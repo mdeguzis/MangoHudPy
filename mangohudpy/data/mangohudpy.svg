@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="mg" cx="40%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#FFE566"/>
+      <stop offset="55%" stop-color="#FFAA00"/>
+      <stop offset="100%" stop-color="#D06000"/>
+    </radialGradient>
+    <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Snake tail (behind mango, bottom-left) -->
+  <path d="M 28 96 Q 16 80 20 60 Q 24 42 38 33"
+        stroke="#388E3C" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <path d="M 28 96 Q 16 80 20 60 Q 24 42 38 33"
+        stroke="#A5D6A7" stroke-width="5.5" fill="none" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- Mango body -->
+  <ellipse cx="64" cy="72" rx="36" ry="46" fill="url(#mg)" transform="rotate(-5 64 72)"/>
+
+  <!-- Mango highlight -->
+  <ellipse cx="50" cy="55" rx="14" ry="10" fill="#FFE87C" opacity="0.45"
+           transform="rotate(-10 50 55)"/>
+
+  <!-- Stem -->
+  <line x1="64" y1="27" x2="61" y2="16" stroke="#795548" stroke-width="3.5"
+        stroke-linecap="round"/>
+
+  <!-- Leaf -->
+  <path d="M 61 17 Q 48 3 36 7 Q 41 19 55 20 Z" fill="#43A047"/>
+  <path d="M 61 17 Q 48 3 36 7" stroke="#2E7D32" stroke-width="1" fill="none"/>
+  <!-- Leaf vein -->
+  <path d="M 61 17 Q 51 11 40 9" stroke="#2E7D32" stroke-width="0.9"
+        fill="none" opacity="0.7"/>
+
+  <!-- Snake body (front — right arc over mango) -->
+  <path d="M 38 33 Q 57 20 82 29 Q 104 40 106 66 Q 108 90 88 101 Q 70 112 52 106 Q 37 100 33 90"
+        stroke="url(#sg)" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <!-- Snake belly stripe -->
+  <path d="M 38 33 Q 57 20 82 29 Q 104 40 106 66 Q 108 90 88 101 Q 70 112 52 106 Q 37 100 33 90"
+        stroke="#C8E6C9" stroke-width="5.5" fill="none" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- Scale marks along body -->
+  <g stroke="#2E7D32" stroke-width="1.2" fill="none" opacity="0.55">
+    <path d="M 49 25 Q 54 22 58 26"/>
+    <path d="M 68 26 Q 73 23 78 27"/>
+    <path d="M 89 36 Q 95 34 99 40"/>
+    <path d="M 104 56 Q 108 62 106 68"/>
+    <path d="M 104 79 Q 106 85 101 91"/>
+    <path d="M 87 101 Q 81 106 75 108"/>
+    <path d="M 62 109 Q 57 110 51 108"/>
+  </g>
+
+  <!-- Snake head -->
+  <ellipse cx="29" cy="87" rx="12" ry="8.5" fill="#4CAF50"
+           transform="rotate(-25 29 87)"/>
+  <ellipse cx="26" cy="84" rx="5.5" ry="3.5" fill="#66BB6A" opacity="0.5"
+           transform="rotate(-25 26 84)"/>
+
+  <!-- Eye -->
+  <circle cx="23" cy="83" r="3.2" fill="#1A1A1A"/>
+  <circle cx="22.1" cy="82.1" r="1.1" fill="white"/>
+  <!-- Eye shine -->
+  <circle cx="23.8" cy="83.8" r="0.6" fill="white" opacity="0.7"/>
+
+  <!-- Forked tongue -->
+  <path d="M 18 91 L 10 88" stroke="#F44336" stroke-width="2"
+        stroke-linecap="round" fill="none"/>
+  <path d="M 10 88 L 7 85" stroke="#F44336" stroke-width="1.6"
+        stroke-linecap="round" fill="none"/>
+  <path d="M 10 88 L 7 91" stroke="#F44336" stroke-width="1.6"
+        stroke-linecap="round" fill="none"/>
+</svg>
