@@ -245,13 +245,13 @@ def build_parser() -> argparse.ArgumentParser:
     from .summary import cmd_summary
     pm.set_defaults(func=cmd_summary)
 
-    # ── games ──────────────────────────────────────────────────────────
+    # ── list ───────────────────────────────────────────────────────────
     pl = sub.add_parser(
-        "games",
-        help="List game names found in MangoHud log files.",
+        "list",
+        help="List entries found in MangoHud log files.",
         description=(
             "Scan the MangoHud log directory for CSV files and extract unique\n"
-            "game names from filenames."
+            "entry names from filenames."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -260,13 +260,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Directory to scan (default: standard MangoHud log dirs).",
     )
-    from .summary import cmd_games
-    pl.set_defaults(func=cmd_games)
+    from .summary import cmd_list
+    pl.set_defaults(func=cmd_list)
 
     # ── organize ───────────────────────────────────────────────────────
     po = sub.add_parser(
         "organize",
-        help="Sort MangoHud logs into per-game folders with rotation.",
+        help="Sort MangoHud logs into named folders with rotation.",
         description=textwrap.dedent(
             f"""\
             Copy MangoHud CSV logs from /tmp/MangoHud into an organised tree:
@@ -276,7 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
                   Cyberpunk2077_2026-02-22_14-30-00.csv
                   current.csv  ->  (symlink to today's newest)
 
-            Rotation: keeps at most --max-logs per game (default {MAX_LOGS_PER_GAME}).
+            Rotation: keeps at most --max-logs per entry (default {MAX_LOGS_PER_GAME}).
         """
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -296,7 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-logs",
         type=int,
         default=MAX_LOGS_PER_GAME,
-        help=f"Max CSV files per game before oldest are deleted (default: {MAX_LOGS_PER_GAME}).",
+        help=f"Max CSV files per entry before oldest are deleted (default: {MAX_LOGS_PER_GAME}).",
     )
     po.add_argument(
         "--dry-run",
@@ -392,7 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    pb.add_argument("-g", "--game", metavar="NAME", help="Bundle only logs for this game.")
+    pb.add_argument("-g", "--game", metavar="NAME", help="Bundle only logs for this entry.")
     pb.add_argument(
         "--source",
         metavar="DIR",
@@ -445,7 +445,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow re-uploading files already present in the benchmark.",
     )
-    pu.add_argument("-g", "--game", metavar="NAME", help="Upload only logs for this game.")
+    pu.add_argument("-g", "--game", metavar="NAME", help="Upload only logs for this entry.")
     pu.add_argument(
         "-i", "--input",
         nargs="*",

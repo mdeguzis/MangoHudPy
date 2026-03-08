@@ -242,12 +242,12 @@ class MainWindow(QMainWindow):
 
     def _on_game_selected(self) -> None:
         item = self.game_list.currentItem()
-        game = "" if item is None or item.text() == "(All Games)" else item.text()
+        game = "" if item is None or item.text() == "(All)" else item.text()
         self.game_selected.emit(game)
 
     def refresh_games(self) -> None:
         self.game_list.clear()
-        self.game_list.addItem(QListWidgetItem("(All Games)"))
+        self.game_list.addItem(QListWidgetItem("(All)"))
         for name in discover_games():
             self.game_list.addItem(QListWidgetItem(name))
         self.game_list.setCurrentRow(0)

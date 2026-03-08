@@ -1,4 +1,4 @@
-"""Summary and games commands: parse CSV logs and print statistics."""
+"""Summary and list commands: parse CSV logs and print statistics."""
 from __future__ import annotations
 
 import argparse
@@ -154,7 +154,7 @@ def cmd_summary(args: argparse.Namespace) -> int:
                 paths.append(nl)
     if not paths:
         log.error(
-            "No log files found.%s", f" (filtered by game '{game}')" if game else ""
+            "No log files found.%s", f" (filtered by name '{game}')" if game else ""
         )
         return 1
     for p in paths:
@@ -164,17 +164,17 @@ def cmd_summary(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_games(args: argparse.Namespace) -> int:
-    """List unique game names discovered from MangoHud log filenames."""
+def cmd_list(args: argparse.Namespace) -> int:
+    """List unique entry names discovered from MangoHud log filenames."""
     d = pathlib.Path(args.log_dir) if args.log_dir else None
     names = discover_games(d)
     if not names:
         print("  No MangoHud logs found.")
         print(f"    Searched: {MANGOHUD_LOG_DIR}, {MANGOHUD_ALT_LOG}")
         return 1
-    print(f"  Games found in MangoHud logs ({len(names)}):\n")
+    print(f"  Entries found in MangoHud logs ({len(names)}):\n")
     for n in names:
         count = len(find_logs(d, game=n))
         print(f"    {n:30s}  ({count} log{'s' if count != 1 else ''})")
-    print("\n  Use --game NAME with configure/graph/summary to target a specific game.")
+    print("\n  Use --game NAME with configure/graph/summary to target a specific entry.")
     return 0
