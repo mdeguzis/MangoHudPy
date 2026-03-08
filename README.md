@@ -54,6 +54,9 @@ A PySide6 desktop companion app (`mangohud-py-gui`) complements the CLI.
 Designed for **SteamOS / Bazzite desktop mode** at 1280×800 (Steam Deck native resolution).
 Supports light and dark themes (File → Settings → Theme).
 
+The GUI auto-detects Wayland when no `DISPLAY` is present (e.g. SSH sessions) and
+sets `QT_QPA_PLATFORM=wayland` automatically.
+
 ### Pages
 
 | Page | What it does |
@@ -85,32 +88,39 @@ The GUI reuses the same logic as the CLI — no reimplemented code, no duplicate
 
 ### Bazzite (Game Mode)
 
-On Bazzite, `gamescope-session` sets `MANGOHUD_CONFIGFILE` to a temp file owned by
-`mangoapp`. This means `MangoHud.conf` and `presets.conf` are **not respected** for
-games in Game Mode — `mangoapp` controls the visual overlay exclusively via the Steam
-Performance slider.
+On Bazzite, `gamescope-session` runs the **mangoapp** HUD stack. Before each game
+launches, **mangopeel** writes a temp config to `MANGOHUD_CONFIGFILE=/tmp/mangohud.XXXXXX`
+and `libMangoHud_shim.so` is LD_PRELOADed into the game — this shim is an IPC bridge
+to mangoapp only; it **cannot write CSV logs**.
 
-**The only supported logging method on Bazzite is the `launch-option` TUI.**
+As a result:
+- `MangoHud.conf` and `presets.conf` are **not respected** in Game Mode
+- The Steam Performance slider controls display via mangoapp exclusively
+- **The only supported logging method is the `launch-option` TUI**
 
 ```bash
 mangohud-py launch-option
 ```
 
-This sets a per-game Steam launch option that runs MangoHud silently in the background:
+This injects a full MangoHud instance alongside the shim so frame data is written
+continuously during gameplay. The injected overlay is made fully transparent so it
+doesn't duplicate the mangoapp HUD:
 
 ```
-MANGOHUD_CONFIG="autostart_log=1,output_folder=~/mangologs,log_interval=100,
-log_versioning=1,log_duration=0,no_display=1" mangohud %command%
+MANGOHUD_CONFIG="autostart_log=1,output_folder=/home/gamer/mangologs,log_interval=100,log_versioning=1,log_duration=0,alpha=0.0,background_alpha=0.0" mangohud %command%
 ```
 
-- `no_display=1` — no overlay; the Steam Performance slider still controls display via `mangoapp`
+- `mangohud %command%` — required; hooks into the render loop for continuous frame capture
+- `alpha=0.0,background_alpha=0.0` — makes the injected overlay fully invisible without
+  disabling the render loop (the correct way to hide it; see pitfalls below)
 - `autostart_log=1` — logging starts immediately on game launch, no keypress needed
-- Logs saved to `~/mangologs/` and named by game automatically
+- `output_folder` — flat path with **no spaces** (MANGOHUD_CONFIG is comma-parsed; spaces corrupt paths)
+- Logs saved to `~/mangologs/` named by game exe, then sorted by `organize`
 
 The TUI connects live to Steam's CEF debugger (no restart needed). Changes take effect
 the next time the game is launched.
 
-TUI keys: `SPACE` toggle, `a` toggle all, `s` show/hide current launch option, `u` apply + quit, `q` quit.
+TUI keys: `SPACE` toggle, `a` toggle all, `u` apply + quit, `q` quit.
 
 **Bazzite workflow:**
 
@@ -125,46 +135,52 @@ mangohud-py organize
 mangohud-py upload
 ```
 
+#### How organize handles Bazzite logs
+
+`organize` detects `mangoapp_*.csv` files (written by the hotkey logger) and matches
+them to their game via Steam's `content_log.txt` session timestamps, with a 3-minute
+pre-tolerance and overlap detection for games that take a long time to register as
+"App Running". The file is then moved and renamed to the canonical Steam game name.
+
+Files written by the injected `mangohud %command%` are named by the game executable
+(e.g. `HorizonZeroDawnRemastered_2026-03-08_11-40-53.csv`) and are matched directly
+without Steam session lookup.
+
 ---
 
 ### Steam Deck (SteamOS — Game Mode)
 
-The Steam Deck uses the same `gamescope-session` + `mangoapp` mechanism as Bazzite,
-but differs in one important way: **SteamOS auto-injects MangoHud into games** when the
-Performance overlay is active. This means `presets.conf` is read by the game process and
-logging works without any per-game launch option.
+The Steam Deck uses the same `gamescope-session` + `mangoapp` mechanism as Bazzite.
 
 **Two methods are available — use either or both:**
 
-#### Method 1: `presets.conf` (simplest — works system-wide)
-
-```bash
-mangohud-py configure
-```
-
-This writes `~/.config/MangoHud/presets.conf` with logging keys injected into all 4
-Valve preset levels. With the Performance slider at position 1–4, MangoHud logs
-automatically for every game — no per-game setup needed.
-
-#### Method 2: `launch-option` TUI (per-game, silent logging)
-
-Same as Bazzite — sets `no_display=1` + `autostart_log=1` per game so logging runs
-silently regardless of the slider position.
+#### Method 1: `launch-option` TUI (per-game, works everywhere)
 
 ```bash
 mangohud-py launch-option
 ```
 
-Run from Desktop Mode (CEF is typically available there). If Steam is not running,
-changes are written to `localconfig.vdf` and take effect on next Steam restart.
+Sets the same invisible MangoHud injection as Bazzite. Run from Desktop Mode
+(CEF is available there). Changes take effect on next game launch.
 
 **To set launch options manually** (without the TUI):
 1. Switch to Desktop Mode
 2. Right-click a game in Steam → Properties → Launch Options
 3. Paste:
    ```
-   MANGOHUD_CONFIG="autostart_log=1,output_folder=~/mangologs,log_interval=100,log_versioning=1,log_duration=0,no_display=1" mangohud %command%
+   MANGOHUD_CONFIG="autostart_log=1,output_folder=/home/deck/mangologs,log_interval=100,log_versioning=1,log_duration=0,alpha=0.0,background_alpha=0.0" mangohud %command%
    ```
+
+#### Method 2: `presets.conf` (system-wide, simplest)
+
+```bash
+mangohud-py configure
+```
+
+On SteamOS, MangoHud is auto-injected into games when the Performance overlay is
+active, which means `presets.conf` is read by the game process. This writes
+`~/.config/MangoHud/presets.conf` with logging keys at all 4 preset levels — no
+per-game setup needed.
 
 ---
 
@@ -211,7 +227,53 @@ mangohud-py configure --preset logging --log-dir /mnt/data/mangologs
 Performance slider positions (1–4) to MangoHud display + logging configs. On desktop,
 MangoHud reads this file normally, so logging activates at any slider position.
 
-> On Bazzite Game Mode, `presets.conf` is not used for games — MangoHud is not auto-injected there. Use `launch-option` instead. On Steam Deck (SteamOS), auto-injection means `presets.conf` does work.
+> On Bazzite Game Mode, `presets.conf` is not used — MangoHud is not auto-injected there. Use `launch-option` instead.
+
+---
+
+## Known pitfalls (Bazzite / SteamOS)
+
+These were discovered through testing and caused regressions. Documented here so they
+are not repeated.
+
+### `no_display=1` kills the render loop → 1-frame CSVs
+
+`no_display=1` does not merely hide the overlay — it disables MangoHud's render loop
+hook entirely. The result is that only 1 frame of data is written (an exit-dump), no
+matter how long the game ran.
+
+**Do not use `no_display=1`.** To hide the injected overlay, use:
+```
+alpha=0.0,background_alpha=0.0
+```
+This makes the overlay fully transparent while keeping the render hook active, so CSVs
+write one row per `log_interval` ms throughout the session.
+
+### `mangohud %command%` is required — the shim cannot write CSVs
+
+`libMangoHud_shim.so` (LD_PRELOADed by Steam on Bazzite/SteamOS) is an IPC bridge
+to mangoapp only. Setting `autostart_log=1` via `MANGOHUD_CONFIG` without injecting
+`mangohud %command%` only produces a 1-frame stats dump on game exit — not a
+continuous frame log.
+
+Always inject `mangohud %command%` in the launch option on mangoapp platforms.
+
+### `env -u MANGOHUD_CONFIGFILE` breaks logging entirely
+
+`MANGOHUD_CONFIGFILE` is set by mangopeel to the mangoapp IPC socket config path.
+The shim uses this to connect. Unsetting it with `env -u MANGOHUD_CONFIGFILE`
+destroys the IPC connection → MangoHud fails to initialize → no CSV is written at all.
+
+Never include `env -u MANGOHUD_CONFIGFILE` in launch options.
+
+### `output_folder` must have no spaces
+
+`MANGOHUD_CONFIG` is parsed as comma-separated `key=value` pairs. A path containing
+spaces (e.g. `output_folder=/home/gamer/mangologs/Horizon Zero Dawn Remastered`) is
+split at the spaces, corrupting the path silently.
+
+Always use the flat `~/mangologs/` as `output_folder`. The `organize` command handles
+per-game sorting after the session.
 
 ---
 
