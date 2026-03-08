@@ -334,20 +334,58 @@ class GraphsPage(QWidget):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
+        deleted_path = run.path
         try:
-            run.path.unlink()
-            self.log.append_line(f"Deleted: {run.path.name}")
+            deleted_path.unlink()
+            self.log.append_line(f"Deleted: {deleted_path.name}")
         except OSError as exc:
-            self.log.append_line(f"Error deleting {run.path.name}: {exc}")
+            self.log.append_line(f"Error deleting {deleted_path.name}: {exc}")
             return
+        self._fix_current_symlink(deleted_path)
         self._runs.pop(row)
         self._runs_list.takeItem(row)
         for i in range(self._runs_list.count()):
             self._runs_list.item(i).setForeground(
                 QColor(_RUN_COLORS[i % len(_RUN_COLORS)])
             )
+        # Block signals so _refresh_combo doesn't trigger spurious _load_selected calls
+        self.log_combo.blockSignals(True)
         self._refresh_combo()
-        self._render_all()
+        self.log_combo.blockSignals(False)
+        if not self._runs and self.log_combo.count() > 0:
+            # Auto-select the next available file in the combo
+            self.log_combo.setCurrentIndex(0)
+            self._load_selected()
+        else:
+            self._render_all()
+
+    def _fix_current_symlink(self, deleted_path: Path) -> None:
+        """Relink the game's current-run symlink if it now points to the deleted file.
+
+        Organized game folders contain a ``{game}-current-mangohud.csv`` symlink
+        that tracks the newest log.  Deleting the target leaves a broken link;
+        this method repoints it at the next-newest real CSV (or removes it if
+        none remain).
+        """
+        parent = deleted_path.parent
+        symlink = parent / f"{parent.name}-current-mangohud.csv"
+        # is_symlink() is True even for broken links; exists() is False when broken
+        if not symlink.is_symlink() or symlink.exists():
+            return
+        csvs = sorted(
+            [p for p in parent.glob("*.csv")
+             if not p.name.endswith("-current-mangohud.csv")
+             and not p.name.endswith("_summary.csv")
+             and p.name != "current.csv"
+             and not p.is_symlink()],
+            key=lambda p: p.stat().st_mtime,
+        )
+        symlink.unlink()
+        if csvs:
+            symlink.symlink_to(csvs[-1].name)
+            self.log.append_line(f"Relinked: {symlink.name} -> {csvs[-1].name}")
+        else:
+            self.log.append_line(f"Removed stale symlink: {symlink.name} (no logs remain)")
 
     # ── rendering ─────────────────────────────────────────────────────
 
