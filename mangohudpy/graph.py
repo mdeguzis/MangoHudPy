@@ -202,7 +202,7 @@ def _mangoplot_available() -> bool:
 def _run_mangoplot(csv_path: pathlib.Path, out_dir: pathlib.Path) -> int:
     """Run mangoplot on a CSV, saving output to out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = ["mangoplot", str(csv_path)]
+    cmd = ["mangoplot", str(csv_path.parent)]
     log.info("Running: %s (output -> %s)", " ".join(cmd), out_dir)
     try:
         result = subprocess.run(
@@ -224,9 +224,11 @@ def _run_mangoplot(csv_path: pathlib.Path, out_dir: pathlib.Path) -> int:
             if result.stdout.strip():
                 print(result.stdout.strip())
         else:
-            log.warning("mangoplot exited with code %d", result.returncode)
+            print(f"  mangoplot exited with code {result.returncode}")
+            if result.stdout.strip():
+                print(result.stdout.strip())
             if result.stderr.strip():
-                log.warning("mangoplot stderr: %s", result.stderr.strip())
+                print(f"  mangoplot: {result.stderr.strip()}")
         return result.returncode
     except FileNotFoundError:
         log.error("mangoplot not found in PATH.")

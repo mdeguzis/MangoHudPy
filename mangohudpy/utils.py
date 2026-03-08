@@ -78,12 +78,30 @@ def mangohud_installed() -> bool:
 def find_logs(
     d: Optional[pathlib.Path] = None, pat: str = "*.csv", game: Optional[str] = None
 ) -> List[pathlib.Path]:
-    """Find MangoHud CSV logs, optionally filtered by game name."""
+    """Find MangoHud CSV logs, optionally filtered by game name.
+
+    Searches both flat log directories and one level of organized subdirectories
+    (e.g. ~/mangologs/<Source>/<file>.csv created by the organize command).
+    """
     dirs = [d] if d else [MANGOHUD_LOG_DIR, MANGOHUD_TMP_LOG, MANGOHUD_ALT_LOG]
+    seen: set = set()
     r: List[pathlib.Path] = []
     for x in dirs:
-        if x and x.is_dir():
-            r.extend(sorted(x.glob(pat)))
+        if not (x and x.is_dir()):
+            continue
+        for p in sorted(x.glob(pat)):
+            resolved = p.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                r.append(p)
+        # Also search organized per-source subdirectories (one level deep)
+        for p in sorted(x.glob(f"*/{pat}")):
+            if p.name == "current.csv":  # skip symlinks — the real file is already found
+                continue
+            resolved = p.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                r.append(p)
     if game:
         gl = game.lower()
         r = [p for p in r if p.stem.lower().startswith(gl)]

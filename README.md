@@ -31,13 +31,48 @@ Upload benchmark logs to [FlightlessSomething](https://flightlesssomething.com)!
 pip install mangohudpy
 ```
 
-With optional graph support (matplotlib):
+The `mangohud-py` command is available immediately after install.
+
+With the optional desktop GUI (PySide6, dark-themed):
 
 ```bash
-pip install "mangohudpy[graphs]"
+pip install "mangohudpy[gui]"
+mangohud-py-gui
 ```
 
-The `mangohud-py` command is available immediately after install.
+Or install everything at once:
+
+```bash
+pip install "mangohudpy[graphs,gui]"
+```
+
+---
+
+## Desktop GUI
+
+A dark-themed PySide6 desktop companion app (`mangohud-py-gui`) complements the CLI.
+Designed for **SteamOS / Bazzite desktop mode** at 1280×800 (Steam Deck native resolution).
+
+### Pages
+
+| Page | What it does |
+|------|-------------|
+| **Dashboard** | Per-game stat cards (avg FPS, 1% low, jitter, session count) with one-click Organize |
+| **Organize** | Sort raw logs into `~/mangologs/<Game>/` — source/dest pickers, dry-run preview |
+| **Summary** | Pick a log file, view a full stats table (avg/min/max/percentiles) + FPS stability score |
+| **Graphs** | Generate PNG/SVG charts inline — uses `mangoplot` if available, falls back to matplotlib |
+| **Config** | Preset picker + editable key/value table, write `MangoHud.conf` or per-game configs |
+| **Upload** | Token management, checkable file list, upload to FlightlessSomething |
+| **Profile** | Launch any command under MangoHud with a timer and live output |
+
+### Install & run
+
+```bash
+pip install "mangohudpy[gui]"
+mangohud-py-gui
+```
+
+The GUI reuses the same logic as the CLI — no reimplemented code, no duplicated behaviour.
 
 ---
 
@@ -250,3 +285,4 @@ mangohud-py upload --append
 - `websocket-client` — required for CEF live injection in `launch-option` (`pip install websocket-client`)
 - `matplotlib` — optional, for graph generation (`pip install "mangohudpy[graphs]"`)
 - `mangoplot` — optional, preferred for graphs (ships with MangoHud on Bazzite)
+- `PySide6` — optional, for the desktop GUI (`pip install "mangohudpy[gui]"`)

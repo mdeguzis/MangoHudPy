@@ -642,7 +642,10 @@ def cmd_upload(args: argparse.Namespace) -> int:
         if not csvs:
             print("  No CSV files found to upload.")
             return 1
-        csvs = _pick_csvs(csvs, already=already_set, force=force) or []
+        # When files are explicitly provided and confirmation is skipped, skip
+        # the interactive picker (GUI pre-selects files via checkboxes).
+        if not getattr(args, "yes", False):
+            csvs = _pick_csvs(csvs, already=already_set, force=force) or []
     else:
         tui_result = _tui_file_picker(src_dir, already_uploaded=already_set, force=force)
         if tui_result is None:
@@ -692,14 +695,10 @@ def cmd_upload(args: argparse.Namespace) -> int:
         }
         if title.strip().lower() in existing_titles:
             if not force:
-                log.error(
-                    "Benchmark \"%s\" already exists. Use --force to append the date and create new.",
-                    title,
-                )
+                print(f"  Error: Benchmark \"{title}\" already exists. Enable Force re-upload to create a new one with a date suffix.")
                 return 1
-            log.warning("Benchmark \"%s\" already exists.", title)
             title = f"{title} - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            print(f"  Benchmark title (date appended): {title}")
+            print(f"  Benchmark already exists — new title: {title}")
         elif not args.yes and not args.title:
             try:
                 edit = input(f"\n  Benchmark title: {title}\n  Edit title? [y/N] ").strip().lower()
