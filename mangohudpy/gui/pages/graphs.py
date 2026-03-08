@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QScrollArea, QSizePolicy,
+    QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
     QSplitter, QTabWidget, QVBoxLayout, QWidget,
 )
 
@@ -172,13 +172,11 @@ class GraphsPage(QWidget):
         pick_row = QHBoxLayout()
         self.log_combo = QComboBox()
         self.log_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.log_combo.currentIndexChanged.connect(self._load_selected)
         pick_row.addWidget(self.log_combo, stretch=1)
         browse_btn = QPushButton("Browse…")
         browse_btn.clicked.connect(self._browse)
         pick_row.addWidget(browse_btn)
-        load_btn = QPushButton("Load")
-        load_btn.clicked.connect(self._load_selected)
-        pick_row.addWidget(load_btn)
         add_btn = QPushButton("Add Run")
         add_btn.setToolTip("Overlay another CSV on all charts")
         add_btn.clicked.connect(self._add_run)
@@ -191,7 +189,7 @@ class GraphsPage(QWidget):
         self._runs_list.setMaximumHeight(64)
         self._runs_list.setToolTip("Select a run then click Remove to delete it")
         runs_row.addWidget(self._runs_list, stretch=1)
-        remove_btn = QPushButton("Remove Selected")
+        remove_btn = QPushButton("Delete File")
         remove_btn.clicked.connect(self._remove_selected)
         runs_row.addWidget(remove_btn)
         layout.addLayout(runs_row)
@@ -328,14 +326,27 @@ class GraphsPage(QWidget):
         row = self._runs_list.currentRow()
         if row < 0 or row >= len(self._runs):
             return
-        removed = self._runs.pop(row)
+        run = self._runs[row]
+        reply = QMessageBox.question(
+            self, "Delete File",
+            f"Permanently delete {run.path.name}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            run.path.unlink()
+            self.log.append_line(f"Deleted: {run.path.name}")
+        except OSError as exc:
+            self.log.append_line(f"Error deleting {run.path.name}: {exc}")
+            return
+        self._runs.pop(row)
         self._runs_list.takeItem(row)
-        # Re-colour remaining items
         for i in range(self._runs_list.count()):
             self._runs_list.item(i).setForeground(
                 QColor(_RUN_COLORS[i % len(_RUN_COLORS)])
             )
-        self.log.append_line(f"Removed: {removed.label}")
+        self._refresh_combo()
         self._render_all()
 
     # ── rendering ─────────────────────────────────────────────────────
