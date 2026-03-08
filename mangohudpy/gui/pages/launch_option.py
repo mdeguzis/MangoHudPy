@@ -50,6 +50,7 @@ class LaunchOptionPage(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.keyPressEvent = self._table_key_press
+        self.table.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self.table, stretch=1)
 
         btn_row = QHBoxLayout()
@@ -75,6 +76,7 @@ class LaunchOptionPage(QWidget):
         self._pending: Dict[str, str] = {}
         self._app_names: Dict[str, str] = {}  # app_id -> name
         self._row_app_ids: list = []           # row index -> app_id
+        self._updating: bool = False           # guard against itemChanged re-entrancy
 
         self._load_games()
 
@@ -132,27 +134,39 @@ class LaunchOptionPage(QWidget):
         self.log.append_line(f"Loaded {len(games)} games from {cfg_path}")
         self._apply_filter(self.filter_edit.text())
 
+    def _on_item_changed(self, item) -> None:
+        """Handle direct checkbox clicks (column 0) in addition to Space key."""
+        if self._updating or item.column() != 0:
+            return
+        row = self.table.row(item)
+        if 0 <= row < len(self._row_app_ids):
+            self._toggle_row(row)
+
     def _set_row(self, row: int, app_id: str, name: str, opt: str) -> None:
         from mangohudpy.launch import _has_mangohud
 
-        enabled = _has_mangohud(opt)
-        changed = opt != self._original.get(app_id, opt)
+        self._updating = True
+        try:
+            enabled = _has_mangohud(opt)
+            changed = opt != self._original.get(app_id, opt)
 
-        chk = QTableWidgetItem()
-        chk.setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
-        chk.setFlags(chk.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        chk.setData(Qt.ItemDataRole.UserRole, app_id)
-        if changed:
-            chk.setForeground(Qt.GlobalColor.yellow)
-        self.table.setItem(row, 0, chk)
+            chk = QTableWidgetItem()
+            chk.setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
+            chk.setFlags(chk.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            chk.setData(Qt.ItemDataRole.UserRole, app_id)
+            if changed:
+                chk.setForeground(Qt.GlobalColor.yellow)
+            self.table.setItem(row, 0, chk)
 
-        name_item = QTableWidgetItem(name)
-        if changed:
-            name_item.setForeground(Qt.GlobalColor.yellow)
-        self.table.setItem(row, 1, name_item)
+            name_item = QTableWidgetItem(name)
+            if changed:
+                name_item.setForeground(Qt.GlobalColor.yellow)
+            self.table.setItem(row, 1, name_item)
 
-        opt_item = QTableWidgetItem(opt)
-        self.table.setItem(row, 2, opt_item)
+            opt_item = QTableWidgetItem(opt)
+            self.table.setItem(row, 2, opt_item)
+        finally:
+            self._updating = False
 
     def _apply_filter(self, text: str) -> None:
         fl = text.lower()

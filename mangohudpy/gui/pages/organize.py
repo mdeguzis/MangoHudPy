@@ -32,8 +32,8 @@ class OrganizePage(QWidget):
         layout = QVBoxLayout(top)
         layout.addWidget(QLabel("<h2>Organize Logs</h2>"))
         layout.addWidget(QLabel(
-            "Copy logs from /tmp/MangoHud into ~/mangologs/&lt;GameName&gt;/ "
-            "with rotation and current symlinks."
+            "Sort logs from ~/mangologs/, /tmp/MangoHud, and XDG data dir "
+            "into ~/mangologs/&lt;GameName&gt;/ with rotation and current symlinks."
         ))
 
         src_row = QHBoxLayout()
