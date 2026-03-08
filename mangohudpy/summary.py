@@ -168,9 +168,15 @@ def cmd_list(args: argparse.Namespace) -> int:
     """List unique entry names discovered from MangoHud log filenames."""
     d = pathlib.Path(args.log_dir) if args.log_dir else None
     names = discover_games(d)
+    filt = getattr(args, "filter", None)
+    if filt:
+        names = [n for n in names if filt.lower() in n.lower()]
     if not names:
         print("  No MangoHud logs found.")
-        print(f"    Searched: {MANGOHUD_LOG_DIR}, {MANGOHUD_ALT_LOG}")
+        if filt:
+            print(f"    (filter: '{filt}' matched nothing)")
+        else:
+            print(f"    Searched: {MANGOHUD_LOG_DIR}, {MANGOHUD_ALT_LOG}")
         return 1
     print(f"  Entries found in MangoHud logs ({len(names)}):\n")
     for n in names:

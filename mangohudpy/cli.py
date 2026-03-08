@@ -260,6 +260,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Directory to scan (default: standard MangoHud log dirs).",
     )
+    pl.add_argument(
+        "--filter",
+        metavar="TEXT",
+        help="Fuzzy filter — show only entries whose name contains TEXT (case-insensitive).",
+    )
     from .summary import cmd_list
     pl.set_defaults(func=cmd_list)
 
