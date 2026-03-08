@@ -181,14 +181,38 @@ def _cef_available() -> bool:
 
 # ── Mangohud option helpers ────────────────────────────────────────────
 
-_MH_RE = re.compile(r'(?:MANGOHUD_CONFIG="[^"]*"\s+)?mangohud\s+', re.IGNORECASE)
+# Matches all prefix styles so _remove_mangohud strips the full prefix cleanly:
+#   Current:  MANGOHUD_CONFIG="..." mangohud %command%
+#   Legacy:   MANGOHUD_CONFIG="..." %command%  (no mangohud word)
+#   Old bad:  env -u MANGOHUD_CONFIGFILE MANGOHUD_CONFIG="..." mangohud %command%
+_MH_RE = re.compile(r'(?:env\s+-u\s+MANGOHUD_CONFIGFILE\s+)?MANGOHUD_CONFIG="[^"]*"\s+(?:mangohud\s+)?', re.IGNORECASE)
 
 
-def _mangohud_prefix(log_dir: pathlib.Path) -> str:
+def _use_mangoapp() -> bool:
+    """Return True on Bazzite/SteamOS where mangoapp owns the HUD."""
+    from .utils import is_bazzite, is_steamos
+    return (
+        os.environ.get("STEAM_USE_MANGOAPP") == "1"
+        or _is_game_mode()
+        or is_bazzite()
+        or is_steamos()
+    )
+
+
+def _mangohud_prefix(log_dir: pathlib.Path, game_name: Optional[str] = None) -> str:
+    # Always use the flat log_dir — game names with spaces break MANGOHUD_CONFIG
+    # comma parsing. organize handles per-game sorting after the session.
+    out_dir = log_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Must inject `mangohud %command%` so MangoHud hooks into the render loop.
+    # Without it, autostart_log=1 only produces a 1-frame exit-dump via the shim.
+    # Use alpha=0,background_alpha=0 to make the overlay invisible without disabling
+    # rendering — no_display=1 kills the render-loop hook and produces 1-frame CSVs.
     cfg = (
-        f"autostart_log=1,output_folder={log_dir},"
+        f"autostart_log=1,output_folder={out_dir},"
         "log_interval=100,log_versioning=1,log_duration=0,"
-        "no_display=1"
+        "alpha=0.0,background_alpha=0.0"
     )
     return f'MANGOHUD_CONFIG="{cfg}" mangohud '
 
@@ -198,6 +222,9 @@ def _has_mangohud(opt: str) -> bool:
 
 
 def _add_mangohud(opt: str, prefix: str) -> str:
+    # Always strip any existing prefix first so toggling ON regenerates it in-place
+    if _has_mangohud(opt):
+        opt = _remove_mangohud(opt)
     if not opt.strip():
         return f"{prefix}%command%"
     if "%command%" in opt:
@@ -229,7 +256,7 @@ class _LaunchOptionTUI:
         self.log_dir = log_dir
         self.game_mode = game_mode
         self.use_cef = use_cef
-        self.prefix = _mangohud_prefix(log_dir)
+        self._log_dir = log_dir
 
         self.original: Dict[str, str] = {
             app_id: _get_launch_option(vdf_data, app_id)
@@ -240,7 +267,7 @@ class _LaunchOptionTUI:
         self.filter_text = ""
         self.cursor = 0
         self.scroll = 0
-        self.show_launch = False
+        self.show_launch = True
 
     def _filtered(self) -> List[Tuple[str, str]]:
         if not self.filter_text:
@@ -253,7 +280,9 @@ class _LaunchOptionTUI:
         if _has_mangohud(cur):
             self.pending[app_id] = _remove_mangohud(cur)
         else:
-            self.pending[app_id] = _add_mangohud(cur, self.prefix)
+            game_name = next((n for aid, n in self.games if aid == app_id), None)
+            prefix = _mangohud_prefix(self._log_dir, game_name)
+            self.pending[app_id] = _add_mangohud(cur, prefix)
 
     def _changes(self) -> Dict[str, str]:
         return {
@@ -368,7 +397,7 @@ class _LaunchOptionTUI:
             # Footer
             nchanges = len(self._changes())
             change_str = f"  |  {nchanges} pending" if nchanges else ""
-            footer = f" SPACE toggle  |  a select all  |  s show opt  |  u apply+quit  |  q quit{change_str}"
+            footer = f" SPACE toggle  |  a select all  |  u apply+quit  |  q quit{change_str}"
             try:
                 stdscr.addstr(h - 1, 0, footer[:w], curses.A_DIM)
             except curses.error:
@@ -392,14 +421,13 @@ class _LaunchOptionTUI:
                 elif key.lower() == "a":
                     # Select all visible: enable all if any are off, else disable all
                     all_on = all(_has_mangohud(self.pending[aid]) for aid, _ in filtered)
-                    for aid, _ in filtered:
+                    for aid, name in filtered:
                         cur = self.pending[aid]
                         if all_on:
                             self.pending[aid] = _remove_mangohud(cur)
                         elif not _has_mangohud(cur):
-                            self.pending[aid] = _add_mangohud(cur, self.prefix)
-                elif key.lower() == "s":
-                    self.show_launch = not self.show_launch
+                            prefix = _mangohud_prefix(self._log_dir, name)
+                            self.pending[aid] = _add_mangohud(cur, prefix)
                 elif key.lower() == "u":
                     return self._changes()
                 elif key.lower() == "q":

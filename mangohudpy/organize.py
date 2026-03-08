@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import pathlib
 import re
 import shutil
@@ -18,6 +19,28 @@ from .utils import (
     log,
     parse_steam_game_sessions,
 )
+
+
+def _is_file_open(path: pathlib.Path) -> bool:
+    """Return True if any process currently has this file open."""
+    try:
+        target_ino = path.stat().st_ino
+    except OSError:
+        return False
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        fd_dir = pathlib.Path(f"/proc/{pid}/fd")
+        try:
+            for fd in fd_dir.iterdir():
+                try:
+                    if fd.stat().st_ino == target_ino:
+                        return True
+                except OSError:
+                    continue
+        except PermissionError:
+            continue
+    return False
 
 
 def _parse_mangoapp_timestamp(stem: str) -> Optional[datetime.datetime]:
@@ -86,18 +109,25 @@ def cmd_organize(args: argparse.Namespace) -> int:
     deleted = 0
     today = datetime.date.today().isoformat()
     originals_to_delete: List[pathlib.Path] = []
+    file_log: List[str] = []  # per-file action lines printed in summary
 
     for src in raw_logs:
+        if _is_file_open(src):
+            file_log.append(f"  skip   {src.name}  (in use — skipping active log)")
+            continue
+
         if src.stem.startswith("mangoapp"):
             csv_ts = _parse_mangoapp_timestamp(src.stem)
             if csv_ts and steam_sessions:
-                detected = find_game_for_timestamp(csv_ts, steam_sessions, steam_app_names)
+                csv_mtime = datetime.datetime.fromtimestamp(src.stat().st_mtime)
+                detected = find_game_for_timestamp(
+                    csv_ts, steam_sessions, steam_app_names, csv_end=csv_mtime
+                )
                 game = detected or "mangoapp"
             else:
                 game = "mangoapp"
             if game != "mangoapp":
-                # Rename: swap "mangoapp" prefix for the detected game name.
-                suffix = src.name[len("mangoapp"):]  # e.g. "_2026-03-07_16-15-37.csv"
+                suffix = src.name[len("mangoapp"):]
                 target_name = game + suffix
                 log.info("mangoapp CSV matched to '%s' via Steam session", game)
             else:
@@ -110,11 +140,14 @@ def cmd_organize(args: argparse.Namespace) -> int:
 
         if target.exists():
             skipped += 1
-            originals_to_delete.append(src)
+            file_log.append(f"  skip   {src.name}")
+            # Only delete the original if it's not the same file as the target
+            if src.resolve() != target.resolve():
+                originals_to_delete.append(src)
             continue
 
         if dry:
-            print(f"    [dry-run] {src.name} -> {game_dir}/")
+            file_log.append(f"  copy   {src.name}  →  {game}/")
             moved += 1
             continue
 
@@ -122,6 +155,9 @@ def cmd_organize(args: argparse.Namespace) -> int:
         shutil.copy2(str(src), str(target))
         moved += 1
         originals_to_delete.append(src)
+        renamed = target_name != src.name
+        arrow = f"{src.name}  →  {game}/{target_name}" if renamed else f"{src.name}  →  {game}/"
+        file_log.append(f"  copy   {arrow}")
         log.info("Copied: %s -> %s", src, target)
 
     if not dry:
@@ -210,19 +246,52 @@ def cmd_organize(args: argparse.Namespace) -> int:
                 if all_csvs:
                     current_link.symlink_to(all_csvs[-1].name)
 
-    print(f"  Organize complete: {dest}")
-    print(f"    Copied  : {moved} log(s)")
-    print(f"    Skipped : {skipped} (already exist)")
-    print(f"    Deleted : {deleted} original(s) from source")
-    print(f"    Rotated : {rotated} old log(s) deleted (max {max_logs}/game)")
+    W = 72
+    print(f"┌─ MangoHud Organize {'─' * (W - 20)}┐")
+    print(f"│  {str(dest):<{W - 2}}│")
+    print(f"└{'─' * W}┘")
 
-    for game_dir in sorted(dest.iterdir()):
-        if not game_dir.is_dir():
-            continue
-        csvs = sorted(game_dir.glob("*.csv"))
-        gn = game_dir.name
-        real_csvs = [c for c in csvs if not c.name.endswith("-current-mangohud.csv")]
-        cur = game_dir / f"{gn}-current-mangohud.csv"
-        cur_target = cur.resolve().name if cur.is_symlink() else "none"
-        print(f"    {game_dir.name}/  ({len(real_csvs)} logs, current -> {cur_target})")
+    # ── Per-file actions ──────────────────────────────────────────────────
+    if file_log:
+        print()
+        for line in file_log:
+            print(line)
+
+    # ── Totals ────────────────────────────────────────────────────────────
+    print()
+    print(f"  ─── Summary {'─' * (W - 12)}")
+    parts = [
+        f"Copied {moved}",
+        f"Skipped {skipped}",
+        f"Deleted {deleted}",
+        f"Rotated {rotated}",
+    ]
+    print("  " + "  │  ".join(parts))
+
+    # ── Per-game folder summary ───────────────────────────────────────────
+    game_dirs = [p for p in sorted(dest.iterdir()) if p.is_dir()]
+    if game_dirs:
+        print()
+        print(f"  ─── Games {'─' * (W - 10)}")
+        name_w = max(len(p.name) for p in game_dirs)
+        for game_dir in game_dirs:
+            gn = game_dir.name
+            real_csvs = sorted(
+                [c for c in game_dir.glob("*.csv")
+                 if not c.name.endswith("-current-mangohud.csv")
+                 and not c.name.endswith("_summary.csv")
+                 and not c.is_symlink()],
+                key=lambda p: p.stat().st_mtime,
+            )
+            cur = game_dir / f"{gn}-current-mangohud.csv"
+            if cur.is_symlink():
+                cur_resolved = cur.resolve()
+                cur_target = cur_resolved.name if cur_resolved.exists() else f"{cur.readlink().name} (missing)"
+            else:
+                cur_target = "—"
+            count = len(real_csvs)
+            label = f"{count} log{'s' if count != 1 else ''}"
+            print(f"  {gn:<{name_w}}  {label:<8}  current: {cur_target}")
+
+    print()
     return 0

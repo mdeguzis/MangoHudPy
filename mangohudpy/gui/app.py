@@ -11,6 +11,14 @@ except PackageNotFoundError:
     _VERSION = "0.0.0"
 
 
+def _ensure_display() -> None:
+    """Set QT_QPA_PLATFORM to wayland if no X display is available."""
+    import os
+    if not os.environ.get("DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
+        if os.environ.get("WAYLAND_DISPLAY"):
+            os.environ["QT_QPA_PLATFORM"] = "wayland"
+
+
 def main(argv=None) -> int:
     args = argv if argv is not None else sys.argv[1:]
 
@@ -23,6 +31,8 @@ def main(argv=None) -> int:
         )
         p.print_help()
         return 0
+
+    _ensure_display()
 
     try:
         from PySide6.QtGui import QColor, QPalette

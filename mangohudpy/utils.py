@@ -90,13 +90,15 @@ def find_logs(
         if not (x and x.is_dir()):
             continue
         for p in sorted(x.glob(pat)):
+            if p.is_symlink():
+                continue
             resolved = p.resolve()
             if resolved not in seen:
                 seen.add(resolved)
                 r.append(p)
         # Also search organized per-source subdirectories (one level deep)
         for p in sorted(x.glob(f"*/{pat}")):
-            if p.name == "current.csv":  # skip symlinks — the real file is already found
+            if p.is_symlink():
                 continue
             resolved = p.resolve()
             if resolved not in seen:
@@ -337,15 +339,24 @@ def find_game_for_timestamp(
     sessions: List[Tuple[str, datetime.datetime, Optional[datetime.datetime]]],
     app_names: Dict[str, str],
     pre_tolerance_secs: int = 180,
+    csv_end: Optional[datetime.datetime] = None,
 ) -> Optional[str]:
-    """Return the game name whose Steam session overlaps ts, or None.
+    """Return the game name whose Steam session overlaps the CSV time range, or None.
 
     pre_tolerance_secs: how many seconds before "App Running" to consider
-    the game already active (covers load time before Steam reports it).
+    the game already active (covers long load times before Steam reports it).
+    csv_end: mtime of the CSV file. When provided, a session matches if it
+    overlaps the interval [ts, csv_end], catching games that take longer to
+    report "App Running" than pre_tolerance_secs allows.
     """
     for app_id, start, end in sessions:
         window_start = start - datetime.timedelta(seconds=pre_tolerance_secs)
         window_end = end if end is not None else datetime.datetime.max
+        # Point-in-time match (original behaviour)
         if window_start <= ts <= window_end:
+            return app_names.get(app_id)
+        # Overlap match: CSV ran from ts→csv_end; session ran from start→end.
+        # They overlap if ts < window_end and csv_end > window_start.
+        if csv_end is not None and ts < window_end and csv_end > window_start:
             return app_names.get(app_id)
     return None
