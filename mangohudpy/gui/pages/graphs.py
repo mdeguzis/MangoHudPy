@@ -278,27 +278,30 @@ class GraphsPage(QWidget):
         self.log_combo.blockSignals(True)
         self.log_combo.clear()
 
-        # Pin the game's current symlink as the first item when a game is selected
-        current_resolved: Optional[Path] = None
-        if self._game and BENCH_LOG_DIR.is_dir():
-            game_filter = self._game.lower()
-            for game_dir in sorted(BENCH_LOG_DIR.iterdir()):
+        # Always scan organized folders for current symlinks.
+        # Filter to selected game if one is active; otherwise show all.
+        current_resolved: set = set()
+        if BENCH_LOG_DIR.is_dir():
+            game_filter = self._game.lower() if self._game else None
+            candidates = []
+            for game_dir in BENCH_LOG_DIR.iterdir():
                 if not game_dir.is_dir():
                     continue
                 symlink = game_dir / f"{game_dir.name}-current-mangohud.csv"
-                if symlink.is_symlink() and symlink.exists():
-                    resolved = symlink.resolve()
-                    if resolved.stem.lower().startswith(game_filter):
-                        self.log_combo.addItem(
-                            f"★ current  →  {resolved.name}", userData=resolved
-                        )
-                        current_resolved = resolved
-                        break
+                if not symlink.is_symlink() or not symlink.exists():
+                    continue
+                resolved = symlink.resolve()
+                if game_filter and not resolved.stem.lower().startswith(game_filter):
+                    continue
+                candidates.append((symlink.stat().st_mtime, symlink.name, resolved))
+            for _, sym_name, resolved in sorted(candidates, key=lambda x: x[0], reverse=True):
+                self.log_combo.addItem(sym_name, userData=resolved)
+                current_resolved.add(resolved)
 
         logs = find_logs(game=self._game or None)
         for p in sorted(logs, key=lambda p: p.stat().st_mtime, reverse=True):
-            if current_resolved and p.resolve() == current_resolved:
-                continue  # already listed as current
+            if p.resolve() in current_resolved:
+                continue  # already listed via symlink
             self.log_combo.addItem(p.name, userData=p)
 
         self.log_combo.blockSignals(False)
