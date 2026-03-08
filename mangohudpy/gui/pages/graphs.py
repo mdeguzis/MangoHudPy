@@ -274,10 +274,37 @@ class GraphsPage(QWidget):
         self._refresh_combo()
 
     def _refresh_combo(self) -> None:
+        from mangohudpy.constants import BENCH_LOG_DIR
+        self.log_combo.blockSignals(True)
         self.log_combo.clear()
+
+        # Pin the game's current symlink as the first item when a game is selected
+        current_resolved: Optional[Path] = None
+        if self._game and BENCH_LOG_DIR.is_dir():
+            game_filter = self._game.lower()
+            for game_dir in sorted(BENCH_LOG_DIR.iterdir()):
+                if not game_dir.is_dir():
+                    continue
+                symlink = game_dir / f"{game_dir.name}-current-mangohud.csv"
+                if symlink.is_symlink() and symlink.exists():
+                    resolved = symlink.resolve()
+                    if resolved.stem.lower().startswith(game_filter):
+                        self.log_combo.addItem(
+                            f"★ current  →  {resolved.name}", userData=resolved
+                        )
+                        current_resolved = resolved
+                        break
+
         logs = find_logs(game=self._game or None)
         for p in sorted(logs, key=lambda p: p.stat().st_mtime, reverse=True):
+            if current_resolved and p.resolve() == current_resolved:
+                continue  # already listed as current
             self.log_combo.addItem(p.name, userData=p)
+
+        self.log_combo.blockSignals(False)
+        if self.log_combo.count() > 0:
+            self.log_combo.setCurrentIndex(0)
+            self._load_selected()
 
     def _browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
