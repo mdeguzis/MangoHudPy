@@ -50,20 +50,23 @@ pip install "mangohudpy[graphs,gui]"
 
 ## Desktop GUI
 
-A dark-themed PySide6 desktop companion app (`mangohud-py-gui`) complements the CLI.
+A PySide6 desktop companion app (`mangohud-py-gui`) complements the CLI.
 Designed for **SteamOS / Bazzite desktop mode** at 1280×800 (Steam Deck native resolution).
+Supports light and dark themes (File → Settings → Theme).
 
 ### Pages
 
 | Page | What it does |
 |------|-------------|
 | **Dashboard** | Per-game stat cards (avg FPS, 1% low, jitter, session count) with one-click Organize |
-| **Organize** | Sort raw logs into `~/mangologs/<Game>/` — source/dest pickers, dry-run preview |
+| **Organize** | Sort raw logs into `~/mangologs/<Game>/` — source/dest pickers, dry-run preview, systemd timer status |
 | **Summary** | Pick a log file, view a full stats table (avg/min/max/percentiles) + FPS stability score |
-| **Graphs** | Generate PNG/SVG charts inline — uses `mangoplot` if available, falls back to matplotlib |
+| **Graphs** | Generate PNG/SVG charts inline — uses `mangoplot` if available, falls back to matplotlib; auto-loads existing charts; delete button |
 | **Config** | Preset picker + editable key/value table, write `MangoHud.conf` or per-game configs |
-| **Upload** | Token management, checkable file list, upload to FlightlessSomething |
+| **Upload** | Token management, checkable file list with inferred titles, upload to FlightlessSomething |
 | **Profile** | Launch any command under MangoHud with a timer and live output |
+| **Launch Option** | Table of all Steam games — toggle MangoHud on/off per game, applies live via Steam CEF or writes `localconfig.vdf` |
+| **Test** | Run `vkcube` or any command to verify MangoHud logging is working |
 
 ### Install & run
 
