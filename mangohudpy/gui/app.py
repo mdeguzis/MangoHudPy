@@ -47,6 +47,20 @@ def main(argv=None) -> int:
     app.setApplicationName("MangoHudPy")
     app.setApplicationVersion(_VERSION)
 
+    # Set the window icon from the bundled SVG so the titlebar + taskbar show it
+    try:
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        _icon_path = Path(__file__).parent.parent / "data" / "mangohudpy.svg"
+        if not _icon_path.exists():
+            import importlib.resources as _ir
+            _ref = _ir.files("mangohudpy.data").joinpath("mangohudpy.svg")
+            with _ir.as_file(_ref) as _p:
+                _icon_path = _p
+        app.setWindowIcon(QIcon(str(_icon_path)))
+    except Exception:
+        pass
+
     # Force Fusion so the dark palette is respected on all platforms/DEs.
     # Without Fusion, some native styles (e.g. GTK) ignore custom palettes.
     if "Fusion" in QStyleFactory.keys():
