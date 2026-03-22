@@ -65,21 +65,14 @@ jobs:
             echo "tag_created=true" >> $GITHUB_OUTPUT
           fi
 
-  # ── Build wheel + sdist and publish to GitHub Release ────────────────────────
-  # Triggers when autotag creates a new tag, or when a v* tag is pushed directly
+  # ── Build wheel + sdist on every push ───────────────────────────────────────
   build:
     needs: [test, autotag]
-    if: |
-      always() &&
-      needs.test.result == 'success' &&
-      (
-        needs.autotag.outputs.tag_created == 'true' ||
-        (needs.autotag.result == 'skipped' && startsWith(github.ref, 'refs/tags/v'))
-      )
+    if: always() && needs.test.result == 'success'
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # required to create/update GitHub releases
+      contents: write  # required to create GitHub releases
 
     steps:
       - uses: actions/checkout@v4
@@ -89,17 +82,20 @@ jobs:
       - name: Build distributions
         run: uv build
 
-      - name: Upload artifacts to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.autotag.outputs.tag_created == 'true' && format('v{0}', needs.autotag.outputs.version) || github.ref_name }}
-          files: dist/*
-
-      - name: Store dist for PyPI publish
+      - name: Store dist for publish job
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
+
+      - name: Upload artifacts to GitHub Release
+        if: |
+          needs.autotag.outputs.tag_created == 'true' ||
+          (needs.autotag.result == 'skipped' && startsWith(github.ref, 'refs/tags/v'))
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.autotag.outputs.tag_created == 'true' && format('v{0}', needs.autotag.outputs.version) || github.ref_name }}
+          files: dist/*
 
   # ── Publish to PyPI via OIDC trusted publishing (no token needed) ────────────
   publish:
