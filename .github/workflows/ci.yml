@@ -29,6 +29,34 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: uv run pytest tests/ -v
 
+  # ── Auto-tag when pyproject.toml version is new ─────────────────────────────
+  autotag:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need full history to check existing tags
+
+      - name: Create tag if version is new
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          TAG="v$VERSION"
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists — skipping"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Created tag $TAG"
+          fi
+
   # ── Build wheel + sdist and publish to GitHub Release (tags only) ───────────
   build:
     needs: test
