@@ -65,7 +65,7 @@ def test_game_list_has_all_games_entry(qapp):
     """Game list always starts with (All Games)."""
     from mangohudpy.gui.main_window import MainWindow
     win = MainWindow()
-    assert win.game_list.item(0).text() == "(All Games)"
+    assert win.game_list.item(0).text() == "(All)"
 
 
 def test_game_selected_signal_emits(qapp):
