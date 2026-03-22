@@ -23,5 +23,8 @@ mangohud-py-gui = "mangohudpy.gui.app:main"
 where = ["."]
 include = ["mangohudpy*"]
 
+[dependency-groups]
+dev = ["pytest>=8"]
+
 [tool.setuptools.package-data]
 mangohudpy = ["data/*"]
